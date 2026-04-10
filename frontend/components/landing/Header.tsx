@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
-import { Bell, Calendar, Link as LinkIcon, Settings, Stethoscope, User } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { Bell, Calendar, Link as LinkIcon, LogOut, Settings, Stethoscope, User } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import React from 'react'
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -21,9 +21,19 @@ interface NavigationItem {
     active: boolean
 }
 
+
+
+
+
 const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
-    const {user, isAuthenticated} = userAuthStore();
+    const {user, isAuthenticated, logout} = userAuthStore();
     const pathname = usePathname();
+    const router = useRouter();
+
+    const handleLogout = () => {
+    logout();
+    router.push("/");
+};
 
     const getDashboardNavigation = () : NavigationItem[] => {
         if(!user || !showDashboardNav) return [];
@@ -144,11 +154,9 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                               </DropdownMenuItem>
 
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem asChild>
-                                  <Link href={`/${user?.type}/settings`} className='flex items-center'>
-                                      <Settings className='w-4 h-4 mr-2' />
-                                      Settings
-                                  </Link>
+                              <DropdownMenuItem onClick={handleLogout} className='flex items-center cursor-pointer'>
+                                  <LogOut className='w-4 h-4 mr-2' />
+                                  Logout
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

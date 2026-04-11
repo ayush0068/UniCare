@@ -8,7 +8,7 @@ const bodyParser = require('body-parser')
 const response = require('./middleware/response');
 require('./config/passport'); // Passport configuration
 const passportLib = require('passport');
-
+const { startReminderScheduler } = require('./utils/reminderScheduler');
 
 
 
@@ -46,6 +46,9 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 
+startReminderScheduler();
+
+
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/doctor', require('./routes/doctor'));
 app.use('/api/patient', require('./routes/patient'));
@@ -53,8 +56,10 @@ app.use('/api/appointment', require('./routes/appointment'));
 app.use('/api/payment', require('./routes/payment'))
 
 
-app.get('/health', (req, res) => res.ok({time: new Date().toISOString}, 'OK')
+app.get('/health', (req, res) => res.ok({ time: new Date().toISOString() }, 'OK')
 );
+
+
 
 
 

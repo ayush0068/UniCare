@@ -29,6 +29,8 @@ const appointmentSchema = new mongoose.Schema({
   symptoms:{type:String,default:''},
   zegoRoomId:{type:String,default:''},
   prescription:{type:String,default:''},
+  reminder60Sent: { type: Boolean, default: false }, //reminder
+  reminder30Sent: { type: Boolean, default: false }, //reminder
   notes:{type:String,default:''},
 
   //Payment fields

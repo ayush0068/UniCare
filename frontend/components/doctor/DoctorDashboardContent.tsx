@@ -6,466 +6,381 @@ import { useSearchParams } from 'next/navigation'
 import { userAuthStore } from '@/store/authStore'
 import { useDoctorStore } from '@/store/doctorStore'
 import { Appointment, useAppointmentStore } from '@/store/appointmentStore'
-import { set } from 'date-fns'
-import { Activity, Calendar, ChevronRight, Clock, DollarSign, MapPin, Phone, Plus, Star, TrendingUp, Users, Video } from 'lucide-react'
+import {
+  Activity, AlertCircle, Brain, Calendar, CheckCircle2,
+  ChevronRight, Clock, DollarSign, MapPin, Phone, Plus,
+  Star, TrendingUp, Users, Video, X,
+} from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import PrescriptionModal from './PrescriptionModal'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import Link from 'next/link'
-import { Button } from '../ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Badge } from '../ui/badge'
 import { getStatusColor } from '@/lib/constant'
+import { httpService } from '@/service/httpService'
+import AIReportViewModal from '../AI/AIReportViewModal'
 
+/* ─── Custom Alert Modal ─── */
+type AlertType = 'info' | 'error' | 'success'
+interface AlertState { open: boolean; type: AlertType; title: string; message: string }
+
+const CustomAlert = ({ alert, onClose }: { alert: AlertState; onClose: () => void }) => {
+  const cfg = {
+    info:    { icon: <AlertCircle className='w-6 h-6 text-sky-500' />,     bg: 'bg-sky-50',     border: 'border-sky-200',     title: 'text-sky-800'    },
+    error:   { icon: <AlertCircle className='w-6 h-6 text-red-500' />,     bg: 'bg-red-50',     border: 'border-red-200',     title: 'text-red-800'    },
+    success: { icon: <CheckCircle2 className='w-6 h-6 text-emerald-500' />, bg: 'bg-emerald-50', border: 'border-emerald-200', title: 'text-emerald-800' },
+  }[alert.type]
+
+  return (
+    <AnimatePresence>
+      {alert.open && (
+        <>
+          <motion.div key='bd' initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className='fixed inset-0 bg-black/30 backdrop-blur-sm z-[9998]' onClick={onClose} />
+          <motion.div key='modal'
+            initial={{ opacity: 0, scale: 0.88, y: 24 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.88, y: 24 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+            className={`fixed z-[9999] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm rounded-3xl shadow-2xl border p-7 ${cfg.bg} ${cfg.border}`}
+          >
+            <button onClick={onClose} className='absolute top-4 right-4 w-7 h-7 rounded-lg bg-white/70 flex items-center justify-center hover:bg-white transition-colors'>
+              <X className='w-4 h-4 text-slate-500' />
+            </button>
+            <div className='flex flex-col items-center text-center gap-3'>
+              <div className='w-14 h-14 rounded-full bg-white shadow-sm flex items-center justify-center'>{cfg.icon}</div>
+              <h3 className={`text-lg font-bold ${cfg.title}`}>{alert.title}</h3>
+              <p className='text-sm text-slate-600 leading-relaxed'>{alert.message}</p>
+              <button onClick={onClose} className='mt-1 w-full py-3 rounded-2xl bg-sky-500 hover:bg-sky-600 text-white text-sm font-bold transition-colors duration-200'>
+                Got it
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/* ═══════════════════════════════════════════════ */
 const DoctorDashboardContent = () => {
-
-  const searchParams = useSearchParams();
-  const {user} = userAuthStore();
-  const {dashboard: dashboardData, fetchDashboard, loading} = useDoctorStore();
-
-  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false);
+  const searchParams = useSearchParams()
+  const { user } = userAuthStore()
+  const { dashboard: dashboardData, fetchDashboard, loading } = useDoctorStore()
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [completingAppointmentId, setCompletingAppointmentId] = useState<string | null>(null)
-  const [modalLoading, setModalLoading] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false)
+  const [aiReport, setAiReport] = useState<any>(null)
+  const [showAiReport, setShowAiReport] = useState(false)
+  const [aiReportLoading, setAiReportLoading] = useState<string | null>(null)
+  const [customAlert, setCustomAlert] = useState<AlertState>({ open: false, type: 'info', title: '', message: '' })
+  const { endConsultation, fetchAppointmentById, currentAppointment } = useAppointmentStore()
 
-  const {endConsultation, fetchAppointmentById, currentAppointment} = useAppointmentStore();
+  const showAlert = (type: AlertType, title: string, message: string) => setCustomAlert({ open: true, type, title, message })
+  const closeAlert = () => setCustomAlert(prev => ({ ...prev, open: false }))
+
+  useEffect(() => { if (user?.type === 'doctor') fetchDashboard(user?.type) }, [user, fetchDashboard])
 
   useEffect(() => {
-    if(user?.type === 'doctor') {
-      fetchDashboard(user?.type)
-    }
-  }, [user, fetchDashboard]);
-
-  useEffect(() => {
-    const completedCallId = searchParams.get('completedCall');
-    if(completedCallId) {
-      setCompletingAppointmentId(completedCallId);
-      fetchAppointmentById(completedCallId);
-      setShowPrescriptionModal(true);
-    }
+    const id = searchParams.get('completedCall')
+    if (id) { setCompletingAppointmentId(id); fetchAppointmentById(id); setShowPrescriptionModal(true) }
   }, [searchParams, fetchAppointmentById])
 
-  const handleSavePresciption = async(prescription: string, notes: string) => {
-    if(!completingAppointmentId) return;
-    setModalLoading(true);
+  const handleSavePrescription = async (prescription: string, notes: string) => {
+    if (!completingAppointmentId) return
+    setModalLoading(true)
     try {
-      await endConsultation(completingAppointmentId, prescription, notes);
-      setShowPrescriptionModal(false);
-      setCompletingAppointmentId(null);
-
-      if(user?.type){
-        fetchDashboard(user?.type);
-      }
-
-      const url = new URL(window.location.href);
-      url.searchParams.delete('completedCall');
+      await endConsultation(completingAppointmentId, prescription, notes)
+      setShowPrescriptionModal(false)
+      setCompletingAppointmentId(null)
+      if (user?.type) fetchDashboard(user?.type)
+      const url = new URL(window.location.href)
+      url.searchParams.delete('completedCall')
       window.history.replaceState({}, '', url.pathname)
-    } catch (error) {
-      console.error('Failed to complete Consultation', error)
-    }finally{
-      setModalLoading(false);
-    }
+    } catch (err) { console.error(err) } finally { setModalLoading(false) }
   }
 
-  const handleCloseModal = () => {
-    setShowPrescriptionModal(false)
-    setCompletingAppointmentId(null);
-    const url = new URL(window.location.href);
-    url.searchParams.delete('completedCall');
-    window.history.replaceState({}, '', url.pathname)
-  };
+  const handleViewAIReport = async (appointmentId: string) => {
+    setAiReport(null); setShowAiReport(false); setAiReportLoading(appointmentId)
+    try {
+      const res = await httpService.getWithAuth(`/ai/appointment-report/${appointmentId}`)
+      const payload = res?.data?.report ?? res?.data ?? null
+      if (res?.success && payload) { setAiReport(payload); setTimeout(() => setShowAiReport(true), 50) }
+      else showAlert('info', 'No Report Available', 'The patient has not generated an AI report for this appointment yet.')
+    } catch { showAlert('error', 'Could Not Load Report', 'Something went wrong while fetching the AI report.') }
+    finally { setAiReportLoading(null) }
+  }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    })
-  };
-
-  const canJoinCall = (appointment: any) => {
-    const appointmentTime = new Date(appointment.slotStartIso);
-    const now = new Date();
-    const diffMinutes = (appointmentTime.getTime() - now.getTime()) / (1000 * 60);
-    return (
-      diffMinutes <= 15 &&
-      diffMinutes >= -120 &&
-      (appointment.status === 'Scheduled' || appointment.status === 'In Progress')
-    );
-  };
+  const canJoinCall = (a: any) => {
+    const diff = (new Date(a.slotStartIso).getTime() - Date.now()) / 60000
+    return diff <= 15 && diff >= -120 && ['Scheduled', 'In Progress'].includes(a.status)
+  }
+  const formatTime = (s: string) => new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const isToday = (s: string) => new Date(s).toDateString() === new Date().toDateString()
 
   if (loading || !dashboardData) {
     return (
       <>
-        <Header showDashboardNav={true} />
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 pt-16">
-          <div className="container mx-auto px-4 py-8">
-            <div className="animate-pulse space-y-8">
-              <div className="flex items-center space-x-4">
-                <div className="w-20 h-20 bg-gray-300 rounded-full"></div>
-                <div className="space-y-2">
-                  <div className="h-8 bg-gray-300 rounded w-64"></div>
-                  <div className="h-4 bg-gray-300 rounded w-48"></div>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 gap-6">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-32 bg-gray-300 rounded"></div>
-                ))}
-              </div>
-            </div>
+        <Header showDashboardNav />
+        <div className='min-h-screen bg-[#F8F7F4] pt-16 flex items-center justify-center'>
+          <div className='flex flex-col items-center gap-3'>
+            <div className='w-10 h-10 border-2 border-sky-500 border-t-transparent rounded-full animate-spin' />
+            <p className='text-sm text-slate-400 font-medium'>Loading dashboard...</p>
           </div>
         </div>
       </>
-    );
+    )
   }
 
-  const patientName = currentAppointment?.patientId?.name
-
-  const statsCards = [
-    {
-      title: 'Total Patients',
-      value: dashboardData?.stats?.totalPatients?.toString() || '0',
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-      change: '+12%',
-      changeColor: 'text-green-600'
-    },
-    {
-      title: "Today's Appointments",
-      value: dashboardData?.stats?.todayAppointments?.toString() || '0',
-      icon: Calendar,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      change: '+8%',
-      changeColor: 'text-green-600'
-    },
-    {
-      title: 'Total Revenue',
-      value: `₹${dashboardData?.stats?.totalRevenue?.toLocaleString() || '0'}`,
-      icon: DollarSign,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-      change: '+25%',
-      changeColor: 'text-green-600'
-    },
-    {
-      title: 'Completed',
-      value: dashboardData?.stats?.completedAppointments?.toString() || '0',
-      icon: Activity,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
-      change: '+18%',
-      changeColor: 'text-green-600'
-    }
-  ];
+  const STATS = [
+    { label: 'Total Patients',       value: dashboardData?.stats?.totalPatients?.toString() || '0',        icon: Users,      color: 'text-sky-600',     bg: 'bg-sky-50 border-sky-100',     grad: 'from-sky-400 to-blue-500' },
+    { label: "Today's Appointments", value: dashboardData?.stats?.todayAppointments?.toString() || '0',    icon: Calendar,   color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100', grad: 'from-emerald-400 to-teal-500' },
+    { label: 'Total Revenue',        value: `₹${dashboardData?.stats?.totalRevenue?.toLocaleString() || '0'}`, icon: DollarSign, color: 'text-violet-600',  bg: 'bg-violet-50 border-violet-100', grad: 'from-violet-400 to-purple-500' },
+    { label: 'Completed',            value: dashboardData?.stats?.completedAppointments?.toString() || '0', icon: Activity,   color: 'text-amber-600',   bg: 'bg-amber-50 border-amber-100',   grad: 'from-amber-400 to-orange-500' },
+  ]
 
   return (
     <>
-    <Header showDashboardNav={true} />
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,600&display=swap');
+        .uc-font { font-family:'DM Sans',system-ui,sans-serif; }
+        .uc-serif { font-family:'Fraunces',Georgia,serif; }
+        @keyframes page-in { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        .page-animate { animation: page-in 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+        .stat-card { transition: transform 0.25s ease, box-shadow 0.25s ease; }
+        .stat-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.08); }
+        .apt-row { transition: background 0.18s ease, transform 0.18s ease; }
+        .apt-row:hover { background: #f8fafc; transform: translateX(2px); }
+        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        .skeleton { background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s ease-in-out infinite; border-radius:10px; }
+      `}</style>
 
-    <div className='min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 pt-16'>
-      <div className='container mx-auto px-4 py-8'>
-        <div className='mb-8'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center space-x-4'>
-                <Avatar className='w-20 h-20 ring-4 ring-blue-100'>
-                  <AvatarImage src={dashboardData?.user?.profileImage} alt={dashboardData?.user?.name}/>
-                  <AvatarFallback>
-                    {dashboardData?.user?.name?.charAt(0).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+      <Header showDashboardNav />
+      <CustomAlert alert={customAlert} onClose={closeAlert} />
 
+      <div className='uc-font min-h-screen bg-[#F8F7F4] pt-16'>
+
+        {/* ─── Hero Banner ─── */}
+        <div className='bg-slate-950 relative overflow-hidden'>
+          <div className='absolute inset-0 opacity-[0.04]' style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.4) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.4) 1px,transparent 1px)', backgroundSize: '48px 48px' }} />
+          <div className='absolute top-0 right-0 w-80 h-80 bg-sky-500/8 rounded-full blur-3xl pointer-events-none' />
+          <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10'>
+            <div className='flex items-center justify-between gap-6 flex-wrap'>
+              <div className='flex items-center gap-5'>
+                <div className='relative'>
+                  <Avatar className='w-16 h-16 ring-4 ring-sky-500/20'>
+                    <AvatarImage src={dashboardData?.user?.profileImage} alt={dashboardData?.user?.name} />
+                    <AvatarFallback className='bg-sky-500 text-white text-xl font-bold'>{dashboardData?.user?.name?.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <span className='absolute bottom-0 right-0 w-4 h-4 bg-emerald-400 rounded-full border-2 border-slate-950 animate-pulse' />
+                </div>
                 <div>
-                  <h1 className='text-md md:text-3xl font-bold text-gray-900'>
-                    Good Evening, {dashboardData?.user?.name}
-                  </h1>
-                  <p className='text-gray-600 text-xs md:text-lg'>
-                        {dashboardData?.user?.specialization}
-                  </p>
-
-                  <div className='flex items-center space-x-4 mt-2'>
-                        <div className='flex items-center space-x-1 text-sm text-gray-500'>
-                                <MapPin className='w-4 h-4' />
-                                <span>
-                                  {dashboardData?.user?.hospitalInfo?.name}, {dashboardData?.user?.hospitalInfo?.city}
-                                </span>
-                        </div>
-
-                        <div className='flex items-center space-x-1'>
-                          <Star className='w-4 h-4 fill-orange-400 text-yellow-400'/>
-                          <span className='text-sm font-semibold text-gray-700'>  
-                            {dashboardData?.stats?.averageRating}
-                          </span>
-                        </div>
+                  <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-400 mb-1'>Good Morning,</p>
+                  <h1 className='uc-serif text-3xl font-bold text-white leading-tight'>{dashboardData?.user?.name}</h1>
+                  <div className='flex items-center gap-3 mt-1.5'>
+                    <span className='text-slate-400 text-sm'>{dashboardData?.user?.specialization}</span>
+                    <span className='text-slate-700'>·</span>
+                    <div className='flex items-center gap-1 text-sm text-slate-400'>
+                      <MapPin className='w-3.5 h-3.5 text-slate-500' />{dashboardData?.user?.hospitalInfo?.city}
+                    </div>
+                    <span className='text-slate-700'>·</span>
+                    <div className='flex items-center gap-1'>
+                      <Star className='w-3.5 h-3.5 fill-amber-400 text-amber-400' />
+                      <span className='text-sm font-bold text-amber-400'>{dashboardData?.stats?.averageRating}</span>
+                    </div>
                   </div>
                 </div>
-
+              </div>
+              <Link href='/doctor/profile'>
+                <button className='flex items-center gap-2 text-sm font-bold text-white bg-sky-500 hover:bg-sky-400 px-4 py-2.5 rounded-xl shadow-lg shadow-sky-500/20 transition-all duration-200 hover:-translate-y-0.5'>
+                  <Plus className='w-4 h-4' />Update Availability
+                </button>
+              </Link>
             </div>
+          </div>
+        </div>
 
-            <div className='hidden md:flex items-center space-x-3'>
-                <Link href="/doctor/profile">
-                    <Button className='bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800'>
-                      <Plus className='w-4 h-4 mr-2'/>
-                      Update Availability
-                    </Button>
-                </Link>
-            </div>
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 page-animate'>
 
+          {/* ─── Stats ─── */}
+          <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
+            {STATS.map((s, i) => (
+              <div key={i} className={`stat-card bg-white rounded-2xl border p-5 shadow-sm ${s.bg}`}>
+                <div className='flex items-start justify-between mb-3'>
+                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.grad} flex items-center justify-center shadow-sm`}>
+                    <s.icon className='w-5 h-5 text-white' />
+                  </div>
+                  <div className='flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full'>
+                    <TrendingUp className='w-3 h-3' />+12%
+                  </div>
+                </div>
+                <p className='uc-serif text-2xl font-bold text-slate-900'>{s.value}</p>
+                <p className='text-xs text-slate-500 font-medium mt-0.5'>{s.label}</p>
+              </div>
+            ))}
           </div>
 
-        </div>
+          {/* ─── Main Grid ─── */}
+          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
-            {statsCards.map((stat, index) => (
-              <Card key={index} className='hover:shadow-lg transition-shadow'>
-                    <CardContent className='p-6'>
-                      <div className='flex items-center justify-between'>
-                          <div>
-                            <p className='text-sm font-medium text-gray-600 mb-1'>
-                              {stat.title}
-                            </p>
-
-                            <p className='text-3xl font-bold text-gray-600 mr-1'>
-                              {stat.value}
-                            </p>
-                            <div className='flex items-center mt-2'>
-                              <TrendingUp className='w-3 h-3 text-green-600 mr-1'/>
-                              <span className={`text-sm font-medium ${stat.changeColor}`}>
-                                {stat.change} from last year
-                              </span>
-                            </div>
-                          </div>
-                          <div className={`w-14 h-14 ${stat.bgColor} rounded-xl flex items-center justify-center`}>
-                              <stat.icon className={`w-7 h-7 ${stat.color}`}/>
-                            </div>
-                      </div>
-                    </CardContent>
-              </Card>
-            ))}
-        </div>
-
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
-            <Card className='lg:col-span-2 hover:shadow-lg transition-shadow'>
-              <CardHeader className='flex flex-row items-center justify-between'>
-                <CardTitle className='flex items-center space-x-2'>
-                    <Calendar className='w-5 h-5 text-blue-500' />
-                    <span>
-                      Today's Schedule
+            {/* Today's Schedule */}
+            <div className='lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden'>
+              <div className='px-6 py-5 border-b border-slate-100 flex items-center justify-between'>
+                <div>
+                  <p className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5'>Today</p>
+                  <h2 className='uc-serif text-xl font-bold text-slate-900'>
+                    Today's Schedule
+                    <span className='ml-3 text-sm font-bold text-sky-600 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-full'>
+                      {dashboardData?.todayAppointments?.length || 0} apts
                     </span>
-                    <Badge
-                      variant='secondary'
-                      className='ml-2'
-                    >
-                      {dashboardData?.todayAppointments?.length} Appointments
-                    </Badge>
-                </CardTitle>
-
+                  </h2>
+                </div>
                 <Link href='/doctor/appointments'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                  >
-                    View All <ChevronRight className='w-4 h-4 ml-1'/>
-                  </Button>
+                  <button className='flex items-center gap-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-100 px-3 py-2 rounded-xl transition-colors duration-200'>
+                    View All <ChevronRight className='w-3.5 h-3.5' />
+                  </button>
                 </Link>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                {dashboardData?.todayAppointments?.length > 0 ? (
-                  dashboardData?.todayAppointments?.map((appointment: Appointment) => (
-                      <div key={appointment?._id} className='flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors'>
-                          <div className='flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg'>
-                              <Clock className='w-6 h-6 text-blue-600'/>
-                          </div>
-                          <div className='flex-1'>
-                              <div className='flex items-center justify-between'>
-                                <h4 className='font-semibold text-gray-900'>
-                                  {appointment?.patientId?.name}
-                                </h4>
-                                <div className='text-sm font-medium text-blue-600'>
-                                  {formatDate(appointment?.slotStartIso)}
-                                </div>
-                              </div>
-
-                              <p className='text-sm text-gray-600 line-clamp-1'>
-                                  Age: {appointment?.patientId?.age}
-                              </p>
-                              <p className='text-sm text-gray-600 line-clamp-1'>
-                                  Symptoms: {appointment?.symptoms.substring(0, 80)}
-                              </p>
-                              <div className='flex items-center space-x-4 mt-2'>
-                                  <Badge className={`${getStatusColor(appointment?.status)}`}>
-                                    {appointment?.status}
-                                  </Badge>
-                                  <div className='flex items-center space-x-1'>
-                                      {appointment.consultationType === 'Video Consultation' ? (
-                                        <Video className='w-4 h-4 text-blue-600'/>
-                                      ) : (
-                                        <Phone className='w-4 h-4 text-green-600'/>
-                                      )}
-                                      <span className='text-sm text-gray-500'>
-                                        ₹{appointment.doctorId?.fees}
-                                      </span>
-                                  </div>
-                              </div>
-                          </div>
-
-                          <div className="flex space-x-2">
-              {canJoinCall(appointment) && (
-                <Link href={`/call/${appointment._id}`}>
-                <Button
-                 size='sm'
-                 className="bg-green-600 hover:bg-green-700"
-                >
-                  <Video className="w-4 h-4 mr-2"/>
-                  Start
-                  </Button></Link>
-              )}
               </div>
+
+              <div className='divide-y divide-slate-50'>
+                {dashboardData?.todayAppointments?.length > 0 ? (
+                  dashboardData.todayAppointments.map((apt: Appointment) => (
+                    <div key={apt._id} className='apt-row flex items-center gap-4 px-6 py-4 cursor-default rounded-xl mx-2 my-1'>
+                      <div className='w-12 h-12 bg-sky-50 border border-sky-100 rounded-2xl flex items-center justify-center flex-shrink-0'>
+                        <Clock className='w-5 h-5 text-sky-500' />
                       </div>
-                  ) )
-                ) : (
-                  <div className='text-center py-12'>
-                      <Calendar className='w-16 h-16 text-gray-300 mx-auto mb-4' />
-                      <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-                          No Appointments Today
-                      </h3>
-                      <p className='text-gray-600 '>
-                        Enjoy your Free Day!
-                      </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <div className='space-y-6'>
-                <Card className='hover:shadow-lg transition-shadow'>
-              <CardHeader className='flex flex-row items-center justify-between'>
-                <CardTitle className='flex items-center space-x-2'>
-                    <Clock className='w-5 h-5 text-blue-500' />
-                    <span>
-                      Upcoming
-                    </span>
-                    
-                </CardTitle>
-
-                <Link href='/doctor/appointments'>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                  >
-                    View All <ChevronRight className='w-4 h-4 ml-1'/>
-                  </Button>
-                </Link>
-              </CardHeader>
-              <CardContent className='space-y-4'>
-                {dashboardData?.upcomingAppointments?.length > 0 ? (
-                  dashboardData?.upcomingAppointments?.map((appointment: Appointment) => (
-                      <div key={appointment?._id} className='flex items-center space-x-4 p-4 border rounded-lg hover:bg-gray-50 transition-colors'>
-                          <Avatar className='w-10 h-10'>
-                            <AvatarImage
-                              src={appointment.patientId.profileImage}
-                            />
-                            <AvatarFallback
-                              className='bg-green-100 text-green-600 text-sm'
-                            >
-                              {appointment.patientId?.name?.charAt(0)}
-
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className='flex-1 min-w-0' >
-                              
-                                <h4 className='font-semibold text-gray-900 text-sm truncate'>
-                                  {appointment?.patientId?.name}
-                                </h4>
-                                <div className='text-sm font-medium text-blue-600'>
-                                  {formatDate(appointment?.slotStartIso)}
-                                </div>
-                              
-                                  
-                                  <div className='flex items-center space-x-1 mt-1'>
-                                      {appointment.consultationType === 'Video Consultation' ? (
-                                        <Video className='w-4 h-4 text-blue-600'/>
-                                      ) : (
-                                        <Phone className='w-4 h-4 text-green-600'/>
-                                      )}
-                                      <span className='text-sm text-gray-500'>
-                                        ₹{appointment.doctorId?.fees}
-                                      </span>
-                                  </div>
-                              
-                          </div>
-
-                  
-                      </div>
-                  ) )
-                ) : (
-                  <div className='text-center py-12'>
-                      <Clock className='w-12 h-12 text-gray-300 mx-auto mb-4' />
-                      <p className='text-sm text-gray-500'>
-                          No  Upcoming Appointments
-                      </p>
-                      
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className='hover:shadow-lg transition-shadow'>
-                <CardHeader>
-                  <CardTitle className='flex items-center space-x-2'>
-                    <TrendingUp className='w-5 h-5 text-blue-500' />
-                    <span>
-                      Performance
-                    </span>
-
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className='space-y-4'>
-                  <div className='flex items-center justify-between'>
-                        <span className='text-sm text-gray-600'>Patient Satisfaction</span>
-                        <div className='flex items-center space-x-1'>
-                          <Star className='w-4 h-4 fill-yellow-400 text-yellow-400 '/>
-                          <span className='font-semibold'>
-                            {dashboardData?.performance?.pateintSatisfaction} / 5
-                          </span>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-center justify-between gap-2'>
+                          <h4 className='font-bold text-slate-900 text-sm truncate'>{apt.patientId?.name}</h4>
+                          <span className='text-xs font-bold text-sky-600 flex-shrink-0'>{formatTime(apt.slotStartIso)}</span>
                         </div>
+                        <p className='text-xs text-slate-400 line-clamp-1 mt-0.5'>
+                          {apt.symptoms?.substring(0, 70)}
+                        </p>
+                        <div className='flex items-center gap-2 mt-1.5'>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${getStatusColor(apt.status)}`}>{apt.status}</span>
+                          {apt.consultationType === 'Video Consultation'
+                            ? <Video className='w-3 h-3 text-sky-500' />
+                            : <Phone className='w-3 h-3 text-emerald-500' />
+                          }
+                          <span className='text-[11px] text-slate-400'>₹{apt.doctorId?.fees}</span>
+                        </div>
+                      </div>
+                      <div className='flex flex-col gap-1.5 flex-shrink-0'>
+                        <button
+                          onClick={() => handleViewAIReport(apt._id)}
+                          disabled={aiReportLoading === apt._id}
+                          className='flex items-center gap-1.5 text-[11px] font-bold text-violet-700 bg-violet-50 border border-violet-100 hover:bg-violet-100 px-2.5 py-1.5 rounded-xl transition-colors duration-200 disabled:opacity-50'
+                        >
+                          {aiReportLoading === apt._id
+                            ? <span className='w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin' />
+                            : <Brain className='w-3 h-3' />
+                          }
+                          AI Report
+                        </button>
+                        {canJoinCall(apt) && (
+                          <Link href={`/call/${apt._id}`}>
+                            <button className='flex items-center gap-1.5 text-[11px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-2.5 py-1.5 rounded-xl transition-colors duration-200 w-full justify-center'>
+                              <Video className='w-3 h-3' /> Start
+                            </button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className='flex flex-col items-center justify-center py-16 text-center px-6'>
+                    <div className='w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-4'>
+                      <Calendar className='w-7 h-7 text-slate-300' />
+                    </div>
+                    <p className='uc-serif text-lg font-bold text-slate-700 mb-1'>No Appointments Today</p>
+                    <p className='text-slate-400 text-sm'>Enjoy your free day!</p>
                   </div>
-
-                  <div className='flex items-center justify-between'>
-                      <span className='text-sm text-gray-600'>
-                          Completion Rate
-                      </span>
-                      <span className='font-semibold text-green-600'>
-                            {dashboardData?.performance?.completionRate}
-                      </span>
-                  </div>
-
-                  <div className='flex items-center justify-between'>
-                      <span className='text-sm text-gray-600'>
-                          Response Time
-                      </span>
-                      <span className='font-semibold text-blue-600'>
-                            {dashboardData?.performance?.responseTime}
-                      </span>
-                  </div>
-                </CardContent>
-            </Card>
+                )}
+              </div>
             </div>
-        </div>
 
+            {/* Right column */}
+            <div className='space-y-5'>
+
+              {/* Upcoming */}
+              <div className='bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden'>
+                <div className='px-5 py-4 border-b border-slate-50 flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <Clock className='w-4 h-4 text-sky-500' />
+                    <h3 className='text-sm font-bold text-slate-900'>Upcoming</h3>
+                  </div>
+                  <Link href='/doctor/appointments'>
+                    <button className='text-[11px] font-semibold text-sky-600 hover:text-sky-700'>View All →</button>
+                  </Link>
+                </div>
+                <div className='divide-y divide-slate-50'>
+                  {dashboardData?.upcomingAppointments?.length > 0 ? (
+                    dashboardData.upcomingAppointments.map((apt: Appointment) => (
+                      <div key={apt._id} className='apt-row flex items-center gap-3 px-5 py-3.5 rounded-xl mx-1.5 my-1'>
+                        <Avatar className='w-9 h-9 ring-2 ring-slate-100 flex-shrink-0'>
+                          <AvatarImage src={apt.patientId.profileImage} />
+                          <AvatarFallback className='bg-sky-100 text-sky-600 text-sm font-bold'>{apt.patientId?.name?.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div className='flex-1 min-w-0'>
+                          <p className='text-sm font-bold text-slate-800 truncate'>{apt.patientId?.name}</p>
+                          <p className='text-[11px] text-sky-600 font-semibold'>{formatTime(apt.slotStartIso)}</p>
+                        </div>
+                        <button
+                          onClick={() => handleViewAIReport(apt._id)}
+                          disabled={aiReportLoading === apt._id}
+                          title='View AI pre-report'
+                          className='w-7 h-7 rounded-lg bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-500 hover:bg-violet-100 transition-colors flex-shrink-0 disabled:opacity-50'
+                        >
+                          {aiReportLoading === apt._id
+                            ? <span className='w-3 h-3 border border-violet-400 border-t-transparent rounded-full animate-spin' />
+                            : <Brain className='w-3.5 h-3.5' />
+                          }
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className='text-center py-10'>
+                      <p className='text-slate-400 text-sm'>No upcoming appointments</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Performance */}
+              <div className='bg-white rounded-3xl border border-slate-100 shadow-sm p-5'>
+                <div className='flex items-center gap-2 mb-4'>
+                  <TrendingUp className='w-4 h-4 text-sky-500' />
+                  <h3 className='text-sm font-bold text-slate-900'>Performance</h3>
+                </div>
+                <div className='space-y-3'>
+                  {[
+                    { label: 'Patient Satisfaction', value: `${dashboardData?.performance?.pateintSatisfaction} / 5`, valueColor: 'text-amber-600', icon: Star },
+                    { label: 'Completion Rate',      value: dashboardData?.performance?.completionRate,             valueColor: 'text-emerald-600', icon: Activity },
+                    { label: 'Response Time',        value: dashboardData?.performance?.responseTime,               valueColor: 'text-sky-600',     icon: Clock },
+                  ].map(({ label, value, valueColor, icon: Icon }) => (
+                    <div key={label} className='flex items-center justify-between py-2 border-b border-slate-50 last:border-0'>
+                      <div className='flex items-center gap-2'>
+                        <Icon className='w-3.5 h-3.5 text-slate-400' />
+                        <span className='text-xs text-slate-500 font-medium'>{label}</span>
+                      </div>
+                      <span className={`text-sm font-bold ${valueColor}`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-    </div>
-
-    <PrescriptionModal 
-     
-     isOpen={showPrescriptionModal}
-     onClose={handleCloseModal}
-     onSave={handleSavePresciption}
-     patientName={patientName}
-    
-    />
-
+      <PrescriptionModal
+        isOpen={showPrescriptionModal}
+        onClose={() => { setShowPrescriptionModal(false); setCompletingAppointmentId(null); const u = new URL(window.location.href); u.searchParams.delete('completedCall'); window.history.replaceState({}, '', u.pathname) }}
+        onSave={handleSavePrescription}
+        patientName={currentAppointment?.patientId?.name}
+        loading={modalLoading}
+      />
+      <AIReportViewModal report={aiReport} isOpen={showAiReport} onClose={() => { setShowAiReport(false); setTimeout(() => setAiReport(null), 300) }} title='Patient AI Pre-Consultation Report' />
+      <CustomAlert alert={customAlert} onClose={closeAlert} />
     </>
   )
 }

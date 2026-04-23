@@ -3,405 +3,305 @@
 import React, { useEffect, useState } from 'react'
 import Header from '../landing/Header'
 import { userAuthStore } from '@/store/authStore'
-import { Appointment, useAppointmentStore } from '@/store/appointmentStore';
-import { Card, CardContent } from '../ui/card';
-import Link from 'next/link';
-import { Button } from '../ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { AlertTriangle, Calendar, Clock, Stethoscope, Video, Phone, Star, XCircle } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Badge } from '../ui/badge';
-import { emptyStates, getStatusColor } from '@/lib/constant';
-import PrescriptionViewModal from './PrescriptionViewModal';
+import { Appointment, useAppointmentStore } from '@/store/appointmentStore'
+import Link from 'next/link'
+import {
+  AlertTriangle, Calendar, Clock, FileText,
+  MapPin, Phone, Plus, Star, Stethoscope,
+  Video, XCircle, ArrowRight,
+} from 'lucide-react'
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
+import { emptyStates, getStatusColor } from '@/lib/constant'
+import PrescriptionViewModal from './PrescriptionViewModal'
 
-// ─── Cancel Confirm Modal ────────────────────────────────────────────────────
-
-interface CancelConfirmModalProps {
-  isOpen: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
+/* ─── Status style map ─── */
+const STATUS_MAP: Record<string, { top: string; dot: string; badge: string; text: string }> = {
+  Scheduled:   { top: 'from-sky-500 to-blue-600',    dot: 'bg-sky-400',     badge: 'bg-sky-50 border-sky-100 text-sky-700',    text: 'text-sky-700' },
+  'In Progress':{ top: 'from-amber-400 to-orange-500', dot: 'bg-amber-400',   badge: 'bg-amber-50 border-amber-100 text-amber-700', text: 'text-amber-700' },
+  Completed:   { top: 'from-emerald-400 to-teal-500', dot: 'bg-emerald-400', badge: 'bg-emerald-50 border-emerald-100 text-emerald-700', text: 'text-emerald-700' },
+  Cancelled:   { top: 'from-red-400 to-rose-500',     dot: 'bg-red-400',     badge: 'bg-red-50 border-red-100 text-red-600',    text: 'text-red-600' },
 }
 
-const CancelConfirmModal = ({ isOpen, onConfirm, onCancel }: CancelConfirmModalProps) => {
-  // Lock body scroll while open
+/* ─── Cancel Modal ─── */
+const CancelModal = ({ isOpen, onConfirm, onCancel }: { isOpen: boolean; onConfirm: () => void; onCancel: () => void }) => {
   useEffect(() => {
-    if (isOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => { document.body.style.overflow = ''; };
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
+    if (isOpen) document.body.style.overflow = 'hidden'
+    else document.body.style.overflow = ''
+    return () => { document.body.style.overflow = '' }
+  }, [isOpen])
+  if (!isOpen) return null
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(15, 23, 42, 0.55)', backdropFilter: 'blur(6px)' }}
-      onClick={onCancel} // click backdrop to dismiss
-    >
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm' onClick={onCancel}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 text-center"
-        style={{
-          animation: 'cancelModalSlideUp 0.28s cubic-bezier(0.34,1.56,0.64,1)',
-          boxShadow: '0 32px 64px rgba(15,23,42,0.18), 0 0 0 1px rgba(226,232,240,0.8)',
-        }}
-        onClick={(e) => e.stopPropagation()} // prevent backdrop click from bubbling
+        className='bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center'
+        style={{ animation: 'modal-up 0.28s cubic-bezier(0.34,1.56,0.64,1)' }}
+        onClick={e => e.stopPropagation()}
       >
-        <style>{`
-          @keyframes cancelModalSlideUp {
-            from { opacity: 0; transform: translateY(24px) scale(0.97); }
-            to   { opacity: 1; transform: translateY(0) scale(1); }
-          }
-        `}</style>
-
-        {/* Icon */}
-        <div className="relative w-16 h-16 mx-auto mb-5">
-          <div className="absolute inset-0 rounded-full bg-red-100" />
-          <div
-            className="absolute rounded-full border-2 border-red-200"
-            style={{ inset: '-4px' }}
-          />
-          <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-red-100 to-red-200 flex items-center justify-center">
-            <XCircle className="w-8 h-8 text-red-600" />
-          </div>
+        <style>{`@keyframes modal-up { from { opacity:0; transform: translateY(20px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }`}</style>
+        <div className='w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-5 ring-4 ring-red-50'>
+          <XCircle className='w-8 h-8 text-red-600' />
         </div>
-
-        {/* Text */}
-        <h2 className="text-lg font-bold text-slate-900 tracking-tight mb-2">
-          Cancel Appointment?
-        </h2>
-        <p className="text-sm text-slate-500 leading-relaxed mb-3">
-          This will cancel the scheduled consultation. The patient will be notified of the cancellation.
-        </p>
-
-        {/* Warning chip */}
-        <div className="inline-flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
-          <AlertTriangle className="w-3 h-3" />
-          This action cannot be undone
+        <h2 className='uc-serif text-xl font-bold text-slate-900 mb-2'>Cancel Appointment?</h2>
+        <p className='text-sm text-slate-500 leading-relaxed mb-4'>The patient will be notified of the cancellation.</p>
+        <div className='inline-flex items-center gap-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6'>
+          <AlertTriangle className='w-3 h-3' /> This action cannot be undone
         </div>
-
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3 rounded-xl border-[1.5px] border-slate-200 bg-white text-slate-600 text-sm font-semibold
-                       hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition-all duration-150"
-          >
-            Keep Appointment
+        <div className='flex gap-3'>
+          <button onClick={onCancel} className='flex-1 py-3 rounded-2xl border-2 border-slate-200 text-slate-600 text-sm font-semibold hover:bg-slate-50 transition-colors duration-200'>
+            Keep It
           </button>
-          <button
-            onClick={onConfirm}
-            className="flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-150
-                       hover:-translate-y-0.5 active:translate-y-0"
-            style={{
-              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-              boxShadow: '0 4px 12px rgba(220,38,38,0.3)',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 6px 16px rgba(220,38,38,0.4)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 12px rgba(220,38,38,0.3)';
-            }}
-          >
-            Yes, Cancel It
+          <button onClick={onConfirm} className='flex-1 py-3 rounded-2xl text-sm font-bold text-white bg-gradient-to-b from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 shadow-lg shadow-red-200 transition-all duration-200 hover:-translate-y-0.5'>
+            Yes, Cancel
           </button>
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-// ─── Main Component ──────────────────────────────────────────────────────────
-
+/* ═══════════════════════════════════════════════ */
 const DoctorAppointmentContent = () => {
-  const { user } = userAuthStore();
-  const { appointments, fetchAppointments, loading, updateAppointmentStatus } = useAppointmentStore();
-  const [activeTab, setActiveTab] = useState('upcoming');
-  const [tabCounts, setTabCounts] = useState({ upcoming: 0, past: 0 });
-
-  // Modal state
-  const [cancelModal, setCancelModal] = useState<{ open: boolean; appointmentId: string | null }>({
-    open: false,
-    appointmentId: null,
-  });
+  const { user } = userAuthStore()
+  const { appointments, fetchAppointments, loading, updateAppointmentStatus } = useAppointmentStore()
+  const [activeTab, setActiveTab] = useState('upcoming')
+  const [tabCounts, setTabCounts] = useState({ upcoming: 0, past: 0 })
+  const [cancelModal, setCancelModal] = useState<{ open: boolean; appointmentId: string | null }>({ open: false, appointmentId: null })
 
   useEffect(() => {
-    if (user?.type === 'doctor') {
-      fetchAppointments('doctor', activeTab);
-    }
-  }, [user, activeTab, fetchAppointments]);
+    if (user?.type === 'doctor') fetchAppointments('doctor', activeTab)
+  }, [user, activeTab, fetchAppointments])
 
   useEffect(() => {
-    const now = new Date();
-    const upcomingAppointments = appointments.filter((apt) => {
-      const aptDate = new Date(apt.slotStartIso);
-      return (
-        (aptDate >= now || apt.status === 'In Progress') &&
-        (apt.status === 'Scheduled' || apt.status === 'In Progress')
-      );
-    });
-    const pastAppointments = appointments.filter((apt) => {
-      const aptDate = new Date(apt.slotStartIso);
-      return aptDate < now || apt.status === 'Completed' || apt.status === 'Cancelled';
-    });
-    setTabCounts({ upcoming: upcomingAppointments.length, past: pastAppointments.length });
-  }, [appointments]);
+    const now = new Date()
+    const upcoming = appointments.filter(a => {
+      const d = new Date(a.slotStartIso)
+      return (d >= now || a.status === 'In Progress') && (a.status === 'Scheduled' || a.status === 'In Progress')
+    })
+    const past = appointments.filter(a => {
+      const d = new Date(a.slotStartIso)
+      return d < now || a.status === 'Completed' || a.status === 'Cancelled'
+    })
+    setTabCounts({ upcoming: upcoming.length, past: past.length })
+  }, [appointments])
 
-  const formatDate = (dateString: string) =>
-    new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long', year: 'numeric', month: 'long',
-      day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
+  const formatDate = (s: string) => new Date(s).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  const formatTime = (s: string) => new Date(s).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+  const isToday = (s: string) => new Date(s).toDateString() === new Date().toDateString()
+  const canJoinCall = (a: any) => {
+    const diff = (new Date(a.slotStartIso).getTime() - Date.now()) / 60000
+    return isToday(a.slotStartIso) && diff <= 15 && diff >= -120 && (a.status === 'Scheduled' || a.status === 'In Progress')
+  }
+  const canMarkCancelled = (a: any) => a.status === 'Scheduled' && new Date() > new Date(a.slotStartIso)
 
-  const isToday = (dateString: string) => {
-    const today = new Date();
-    return new Date(dateString).toDateString() === today.toDateString();
-  };
-
-  const canJoinCall = (appointment: any) => {
-    const appointmentTime = new Date(appointment.slotStartIso);
-    const now = new Date();
-    const diffMinutes = (appointmentTime.getTime() - now.getTime()) / (1000 * 60);
-    return (
-      isToday(appointment.slotStartIso) &&
-      diffMinutes <= 15 &&
-      diffMinutes >= -120 &&
-      (appointment.status === 'Scheduled' || appointment.status === 'In Progress')
-    );
-  };
-
-  const canMarkCancelled = (appointment: any) => {
-    const appointmentTime = new Date(appointment.slotStartIso);
-    const now = new Date();
-    return appointment.status === 'Scheduled' && now > appointmentTime;
-  };
-
-  // ── Open modal instead of browser confirm ──
-  const handleMarkCancelled = (appointmentId: string) => {
-    setCancelModal({ open: true, appointmentId });
-  };
-
-  // ── Called when user confirms inside the modal ──
   const handleConfirmCancel = async () => {
-    if (!cancelModal.appointmentId) return;
-    const id = cancelModal.appointmentId;
-    setCancelModal({ open: false, appointmentId: null });
+    if (!cancelModal.appointmentId) return
+    const id = cancelModal.appointmentId
+    setCancelModal({ open: false, appointmentId: null })
     try {
-      await updateAppointmentStatus(id, 'Cancelled');
-      if (user?.type === 'doctor') {
-        fetchAppointments('doctor', activeTab);
-      }
-    } catch (error) {
-      console.error('Failed to cancel appointment', error);
-    }
-  };
+      await updateAppointmentStatus(id, 'Cancelled')
+      if (user?.type === 'doctor') fetchAppointments('doctor', activeTab)
+    } catch (err) { console.error('Failed to cancel', err) }
+  }
 
-  const handleDismissModal = () => {
-    setCancelModal({ open: false, appointmentId: null });
-  };
+  if (!user) return null
 
-  if (!user) return null;
+  const TABS = [
+    { id: 'upcoming', label: 'Upcoming', icon: Clock, count: tabCounts.upcoming },
+    { id: 'past', label: 'Past', icon: Calendar, count: tabCounts.past },
+  ]
 
-  const AppointmentCard = ({ appointment }: { appointment: Appointment }) => (
-    <Card className="hover:shadow-lg transition-shadow">
-      <CardContent className="p-6">
-        <div className="flex flex-col items-center md:flex-row md:items-start md:space-x-6">
-          <div className="flex-shrink-0 flex justify-center md:justify-start">
-            <Avatar className="w-20 h-20">
-              <AvatarImage src={appointment.patientId?.profileImage} alt={appointment.patientId?.name} />
-              <AvatarFallback className="bg-blue-100 text-blue-600 text-lg font-semibold">
-                {appointment.patientId?.name?.charAt(0)}
-              </AvatarFallback>
-            </Avatar>
-          </div>
-
-          <div className="mt-4 md:mt-0 flex-1 w-full text-center md:text-left">
-            <div className="flex flex-col md:flex-row md:justify-between md:items-start">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">{appointment.patientId?.name}</h3>
-                <p className="text-gray-600">Age: {appointment.patientId?.age}</p>
-                <p className="text-sm text-gray-600">{appointment.patientId?.email}</p>
-              </div>
-              <div className="mt-2 md:mt-0 text-center md:text-right">
-                <Badge className={getStatusColor(appointment.status)}>{appointment.status}</Badge>
-                {isToday(appointment.slotStartIso) && (
-                  <div className="text-xs text-blue-600 font-semibold mt-1">TODAY</div>
-                )}
-              </div>
+  /* ─── Appointment Card ─── */
+  const AppointmentCard = ({ appointment }: { appointment: Appointment }) => {
+    const status = appointment.status as string
+    const sm = STATUS_MAP[status] || STATUS_MAP.Scheduled
+    return (
+      <div className='apt-card bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm'>
+        <div className={`h-1 w-full bg-gradient-to-r ${sm.top}`} />
+        <div className='p-5 sm:p-6'>
+          <div className='flex items-start gap-4'>
+            <div className='relative flex-shrink-0'>
+              <Avatar className='w-14 h-14 ring-2 ring-slate-100'>
+                <AvatarImage src={appointment.patientId?.profileImage} alt={appointment.patientId?.name} className='object-cover' />
+                <AvatarFallback className='bg-gradient-to-br from-sky-400 to-sky-600 text-white font-bold'>
+                  {appointment.patientId?.name?.charAt(0)}
+                </AvatarFallback>
+              </Avatar>
+              {isToday(appointment.slotStartIso) && <span className='absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white animate-pulse' />}
             </div>
 
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-center md:justify-start space-x-2 text-sm text-gray-600">
-                  <Calendar className="w-4 h-4" />
-                  <span>{formatDate(appointment.slotStartIso)}</span>
+            <div className='flex-1 min-w-0'>
+              <div className='flex items-start justify-between gap-2 mb-1 flex-wrap'>
+                <div>
+                  <h3 className='font-bold text-slate-900 text-base leading-tight'>{appointment.patientId?.name}</h3>
+                  <p className='text-slate-400 text-xs mt-0.5'>{appointment.patientId?.email}</p>
                 </div>
-                <div className="flex items-center justify-center md:justify-start space-x-2 text-sm text-gray-600">
-                  {appointment.consultationType === 'Video Consultation'
-                    ? <Video className="w-4 h-4" />
-                    : <Phone className="w-4 h-4" />}
-                  <span>{appointment.consultationType}</span>
+                <div className='flex flex-col items-end gap-1'>
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg border ${sm.badge}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${sm.dot} ${status === 'In Progress' ? 'animate-pulse' : ''}`} />
+                    {appointment.status}
+                  </span>
+                  {isToday(appointment.slotStartIso) && <span className='text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg'>TODAY</span>}
                 </div>
               </div>
 
-              <div className="text-center md:text-left">
-                <div className="flex justify-center gap-2 text-sm text-gray-600">
-                  <span className="font-semibold">Fee:</span>
-                  <p>₹{appointment.doctorId?.fees}</p>
+              <div className='grid grid-cols-1 sm:grid-cols-3 gap-2 my-3'>
+                {[
+                  { icon: Calendar, val: formatDate(appointment.slotStartIso) },
+                  { icon: Clock, val: formatTime(appointment.slotStartIso) },
+                  { icon: appointment.consultationType === 'Video Consultation' ? Video : Phone, val: appointment.consultationType },
+                ].map(({ icon: Icon, val }, i) => (
+                  <div key={i} className='flex items-center gap-2 bg-[#F8F7F4] px-3 py-2 rounded-xl'>
+                    <Icon className='w-3.5 h-3.5 text-sky-400 flex-shrink-0' />
+                    <span className='text-xs font-semibold text-slate-700 truncate'>{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {appointment.symptoms && (
+                <p className='text-xs text-slate-400 line-clamp-2 mb-3 bg-slate-50 rounded-xl px-3 py-2'>
+                  <span className='font-semibold text-slate-600'>Symptoms: </span>{appointment.symptoms}
+                </p>
+              )}
+
+              <div className='flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-50'>
+                <div className='flex gap-2 flex-wrap'>
+                  {canJoinCall(appointment) && (
+                    <Link href={`/call/${appointment._id}`}>
+                      <button className='flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 px-3.5 py-2 rounded-xl shadow-md shadow-emerald-200 transition-all duration-200'>
+                        <Video className='w-3.5 h-3.5' /> Start Consultation
+                      </button>
+                    </Link>
+                  )}
+                  {canMarkCancelled(appointment) && (
+                    <button
+                      onClick={() => setCancelModal({ open: true, appointmentId: appointment._id })}
+                      className='flex items-center gap-1.5 text-xs font-bold text-red-600 border border-red-200 bg-red-50 hover:bg-red-100 px-3.5 py-2 rounded-xl transition-colors duration-200'
+                    >
+                      <XCircle className='w-3.5 h-3.5' /> Mark Cancelled
+                    </button>
+                  )}
+                  {appointment.status === 'Completed' && appointment.prescription && (
+                    <PrescriptionViewModal
+                      appointment={appointment}
+                      userType='patient'
+                      trigger={
+                        <button className='flex items-center gap-1.5 text-xs font-bold text-sky-700 border border-sky-200 bg-sky-50 hover:bg-sky-100 px-3.5 py-2 rounded-xl transition-colors duration-200'>
+                          <Stethoscope className='w-3.5 h-3.5' /> View Report
+                        </button>
+                      }
+                    />
+                  )}
                 </div>
-                {appointment.symptoms && (
-                  <div className="flex justify-center gap-2 text-sm text-gray-600 mt-1">
-                    <span className="font-semibold">Symptoms</span>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{appointment.symptoms}</p>
+                {appointment.status === 'Completed' && (
+                  <div className='flex gap-0.5'>
+                    {[...Array(5)].map((_, i) => <Star key={i} className='w-3.5 h-3.5 fill-amber-400 text-amber-400' />)}
                   </div>
                 )}
               </div>
             </div>
-
-            <div className="mt-6 flex flex-col md:flex-row items-center md:justify-between space-y-3 md:space-y-0">
-              <div className="flex space-x-2">
-                {canJoinCall(appointment) && (
-                  <Link href={`/call/${appointment._id}`}>
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                      <Video className="w-4 h-4 mr-2" />
-                      Start Consultation
-                    </Button>
-                  </Link>
-                )}
-
-                {canMarkCancelled(appointment) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => handleMarkCancelled(appointment._id)}  // ← triggers modal
-                  >
-                    <XCircle className="w-4 h-4 mr-2" />
-                    Mark Cancelled
-                  </Button>
-                )}
-
-                {appointment.status === 'Completed' && appointment.prescription && (
-                  <PrescriptionViewModal
-                    appointment={appointment}
-                    userType="patient"
-                    trigger={
-                      <Button variant="outline" size="sm" className="text-green-700 border-green-200 hover:bg-green-50">
-                        <Stethoscope className="w-4 h-4 mr-2" />
-                        View Report
-                      </Button>
-                    }
-                  />
-                )}
-              </div>
-
-              {appointment.status === 'Completed' && (
-                <div className="flex items-center space-x-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
+      </div>
+    )
+  }
 
-  const EmptyState = ({ tab }: { tab: string }) => {
-    const state = emptyStates[tab as keyof typeof emptyStates];
-    const Icon = state.icon;
+  const EmptyCard = ({ tab }: { tab: string }) => {
+    const state = emptyStates[tab as keyof typeof emptyStates]
+    const Icon = state.icon
     return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <Icon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">{state.title}</h3>
-          <p className="text-gray-600 mb-6">{state.description}</p>
-        </CardContent>
-      </Card>
-    );
-  };
+      <div className='flex flex-col items-center justify-center py-20 text-center'>
+        <div className='w-20 h-20 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-center mb-5'>
+          <Icon className='w-9 h-9 text-slate-300' />
+        </div>
+        <h3 className='uc-serif text-xl font-bold text-slate-800 mb-2'>{state.title}</h3>
+        <p className='text-slate-400 text-sm max-w-xs'>{state.description}</p>
+      </div>
+    )
+  }
 
-  const LoadingGrid = () => (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {[...Array(4)].map((_, i) => (
-        <Card key={i} className="animate-pulse">
-          <CardContent className="p-6">
-            <div className="flex space-x-4">
-              <div className="w-16 h-16 bg-gray-200 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-gray-200 rounded-full w-3/4" />
-                <div className="h-3 bg-gray-200 rounded-full w-3/4" />
-                <div className="h-3 bg-gray-200 rounded-full w-3/4" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+  const SkeletonCard = () => (
+    <div className='bg-white rounded-3xl border border-slate-100 p-5 sm:p-6'>
+      <div className='h-1 bg-slate-100 rounded-full mb-5' />
+      <div className='flex gap-4'>
+        <div className='w-14 h-14 rounded-full skeleton flex-shrink-0' />
+        <div className='flex-1 space-y-2.5'>
+          <div className='skeleton h-4 w-2/5 rounded-xl' />
+          <div className='skeleton h-3 w-1/3 rounded-xl' />
+          <div className='grid grid-cols-3 gap-2 mt-3'>{[...Array(3)].map((_, i) => <div key={i} className='h-8 skeleton rounded-xl' />)}</div>
+        </div>
+      </div>
     </div>
-  );
+  )
 
   return (
     <>
-      <Header showDashboardNav={true} />
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,600&display=swap');
+        .uc-font { font-family:'DM Sans',system-ui,sans-serif; }
+        .uc-serif { font-family:'Fraunces',Georgia,serif; }
+        @keyframes page-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        .page-animate { animation: page-in 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+        @keyframes tab-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        .tab-animate { animation: tab-in 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+        .apt-card { transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s ease, border-color 0.2s ease; }
+        .apt-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(14,165,233,0.10); border-color: #bae6fd; }
+        @keyframes shimmer { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        .skeleton { background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size:200% 100%; animation:shimmer 1.5s ease-in-out infinite; border-radius:10px; }
+      `}</style>
 
-      {/* ── Cancel Confirm Modal ── */}
-      <CancelConfirmModal
-        isOpen={cancelModal.open}
-        onConfirm={handleConfirmCancel}
-        onCancel={handleDismissModal}
-      />
+      <Header showDashboardNav />
+      <CancelModal isOpen={cancelModal.open} onConfirm={handleConfirmCancel} onCancel={() => setCancelModal({ open: false, appointmentId: null })} />
 
-      <div className="min-h-screen bg-gray-50 pt-16">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between mb-8">
+      <div className='uc-font min-h-screen bg-[#F8F7F4] pt-16'>
+        <div className='max-w-5xl mx-auto px-4 sm:px-6 py-8 page-animate'>
+
+          {/* Header */}
+          <div className='flex items-center justify-between mb-8 gap-4 flex-wrap'>
             <div>
-              <h1 className="text-md md:text-3xl font-bold text-gray-900">My Appointments</h1>
-              <p className="text-xs md:text-lg text-gray-600">Manage Your Patient Consultation</p>
+              <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-500 mb-1'>Doctor Portal</p>
+              <h1 className='uc-serif text-3xl font-bold text-slate-900 leading-tight'>
+                My <em className='not-italic text-sky-500'>Appointments</em>
+              </h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <Link href="/doctors/profile">
-                <Button>
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Update Availability
-                </Button>
-              </Link>
-            </div>
+            <Link href='/doctors/profile'>
+              <button className='flex items-center gap-2 text-sm font-bold text-white bg-sky-500 hover:bg-sky-600 px-4 py-2.5 rounded-xl shadow-md shadow-sky-200 transition-all duration-200 hover:-translate-y-0.5'>
+                <Plus className='w-4 h-4' />Update Availability
+              </button>
+            </Link>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upcoming" className="flex items-center space-x-2">
-                <Clock className="w-4 h-4" />
-                <span>Upcoming ({tabCounts.upcoming})</span>
-              </TabsTrigger>
-              <TabsTrigger value="past" className="flex items-center space-x-2">
-                <Calendar className="w-4 h-4" />
-                <span>Past ({tabCounts.past})</span>
-              </TabsTrigger>
-            </TabsList>
+          {/* Tabs */}
+          <div className='flex gap-1.5 mb-8 bg-white rounded-2xl p-1.5 border border-slate-100 shadow-sm w-fit'>
+            {TABS.map(({ id, label, icon: Icon, count }) => {
+              const isActive = activeTab === id
+              return (
+                <button key={id} onClick={() => setActiveTab(id)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${isActive ? 'bg-sky-500 text-white shadow-md shadow-sky-200' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
+                >
+                  <Icon className='w-3.5 h-3.5' />
+                  {label}
+                  <span className={`text-[11px] font-bold min-w-[18px] h-[18px] rounded-full flex items-center justify-center px-1 ${isActive ? 'bg-white/25 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
 
-            <TabsContent value="upcoming" className="space-y-4">
-              {loading ? <LoadingGrid /> : appointments.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {appointments.map((apt) => <AppointmentCard key={apt._id} appointment={apt} />)}
-                </div>
-              ) : <EmptyState tab="upcoming" />}
-            </TabsContent>
-
-            <TabsContent value="past" className="space-y-4">
-              {loading ? <LoadingGrid /> : appointments.length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {appointments.map((apt) => <AppointmentCard key={apt._id} appointment={apt} />)}
-                </div>
-              ) : <EmptyState tab="past" />}
-            </TabsContent>
-          </Tabs>
+          {/* Content */}
+          <div key={activeTab} className='tab-animate'>
+            {loading ? (
+              <div className='space-y-4'>{[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}</div>
+            ) : appointments.length > 0 ? (
+              <div className='space-y-4'>{appointments.map(a => <AppointmentCard key={a._id} appointment={a} />)}</div>
+            ) : (
+              <EmptyCard tab={activeTab} />
+            )}
+          </div>
         </div>
       </div>
     </>
-  );
-};
+  )
+}
 
-export default DoctorAppointmentContent;
+export default DoctorAppointmentContent

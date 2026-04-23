@@ -3,6 +3,8 @@
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 
 
+
+
 interface ApiResponse<T = any>{
     success: boolean;
     message: string;
@@ -92,6 +94,8 @@ class HttpService {
     async getWithoutAuth<T = any> (endPoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {
         return this.makeRequest<T>(endPoint, 'GET', null, false, options)
     }
+
+    
 
 }
 

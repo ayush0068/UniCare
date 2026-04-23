@@ -13,6 +13,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import CalendarStep from "@/components/BookingSteps/CalendarStep";
 import ConsultationStep from "@/components/BookingSteps/ConsultationStep";
 import PaymentStep from "@/components/BookingSteps/PaymentStep";
+import { httpService } from "@/service/httpService";
 
 const page = () => {
   const params = useParams();
@@ -23,24 +24,45 @@ const page = () => {
   const { bookAppointment, loading, fetchBookedSlots, bookedSlots } =
     useAppointmentStore();
 
-  ///state
+  // state
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedSlot, setSelectedSlot] = useState("");
-  const [consultationType, setConsultationType] =
-    useState("Video Consultation");
+  const [consultationType, setConsultationType] = useState("Video Consultation");
   const [symptoms, setSymptoms] = useState("");
   const [isPaymentProcessing, setIsPaymentProcessing] = useState(false);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [createdAppointmentId,setCreatedAppointmentId] = useState<string | null>(null)
-  const [patientName,setPatientName] = useState<string>('')
+  const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null);
+  const [patientName, setPatientName] = useState<string>('');
+
+  // ── Discount state — parent mein rakho taaki PaymentStep ko sahi price mile ──
+  const [discountType, setDiscountType] = useState<'none' | 'free' | 'half'>('none');
 
   useEffect(() => {
     if (doctorId) {
       fetchDoctorById(doctorId);
     }
   }, [doctorId, fetchDoctorById]);
+
+  // ── KEY FIX: selectedDate change hone pe bhi discount check karo ──
+  // Slot date backend ko bhejo taaki parchi expiry us date ke against check ho
+  useEffect(() => {
+    const checkDiscount = async () => {
+      if (!doctorId) return;
+      try {
+        // Agar date select hai to us date ka param bhejo, warna koi param nahi
+        const dateParam = selectedDate ? `?slotDate=${toLocalYMD(selectedDate)}` : '';
+        const res = await httpService.getWithAuth(
+          `/appointment/check-discount/${doctorId}${dateParam}`
+        );
+        if (res.success) setDiscountType(res.data.discountType);
+      } catch (e) {
+        console.error('Discount check failed', e);
+      }
+    };
+    checkDiscount();
+  }, [doctorId, selectedDate]); // ← selectedDate bhi dependency mein hai
 
   useEffect(() => {
     if (selectedDate && doctorId) {
@@ -49,65 +71,38 @@ const page = () => {
     }
   }, [selectedDate, doctorId, fetchBookedSlots]);
 
-  //Generate avaiable dates
+  // Generate available dates
   useEffect(() => {
     if (currentDoctor?.availabilityRange) {
       const startDate = new Date(currentDoctor?.availabilityRange.startDate);
-      //Convert doctor's start date string into a Date Object
-
       const endDate = new Date(currentDoctor?.availabilityRange.endDate);
-      //Convert doctor's end date string into a Date Object
-
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      //get today's date and reset time to midnight
-
       const dates: string[] = [];
-      //Empty list to hold avaiable dates
-
-      const iterationStart = new Date(
-        Math.max(today.getTime(), startDate.getTime())
-      );
-
+      const iterationStart = new Date(Math.max(today.getTime(), startDate.getTime()));
       for (
         let d = new Date(iterationStart);
         d <= endDate && dates.length < 90;
         d.setDate(d.getDate() + 1)
       ) {
         dates.push(toLocalYMD(d));
-        //Convert date into YYYY-MM-DD format and add to list
       }
-
       setAvailableDates(dates);
     }
   }, [currentDoctor]);
 
-  //Generate avaiable slots
+  // Generate available slots
   useEffect(() => {
     if (selectedDate && currentDoctor?.dailyTimeRanges) {
       const slots: string[] = [];
-      //Empty list to hold avaiable dates
-
       const slotDuration = currentDoctor?.slotDurationMinutes || 30;
-
-      currentDoctor.dailyTimeRanges.forEach((timeRange:any) => {
-        const startMintues = timeToMinutes(timeRange.start);
-        //Convert start time (e.g, "12:00") => total mintues (e.g., 540)
-
-        const endMintues = timeToMinutes(timeRange.end);
-        //Convert end time (e.g, "3:00") => total mintues (e.g., 740)
-
-        for (
-          let mintues = startMintues;
-          mintues < endMintues;
-          mintues += slotDuration
-        ) {
-          slots.push(minutesToTime(mintues));
-
-          //Convert mintues back to HH:MM format and add to slots
+      currentDoctor.dailyTimeRanges.forEach((timeRange: any) => {
+        const startMinutes = timeToMinutes(timeRange.start);
+        const endMinutes = timeToMinutes(timeRange.end);
+        for (let minutes = startMinutes; minutes < endMinutes; minutes += slotDuration) {
+          slots.push(minutesToTime(minutes));
         }
       });
-
       setAvailableSlots(slots);
     }
   }, [selectedDate, currentDoctor]);
@@ -117,26 +112,36 @@ const page = () => {
     return hours * 60 + minutes;
   };
 
+  // ── getConsultationPrice — discountType consider karta hai ──
+  const getConsultationPrice = (): number => {
+    const basePrice = currentDoctor?.fees || 0;
+    const typeAddon = consultationType === "Voice Call" ? -100 : 0;
+    const base = Math.max(0, basePrice + typeAddon);
+
+    if (discountType === 'free') return 0;
+    if (discountType === 'half') return Math.ceil(base / 2);
+    return base;
+  };
+
   const handleBooking = async () => {
     if (!selectedDate || !selectedSlot || !symptoms.trim()) {
-      alert("please complete all required fields");
+      alert("Please complete all required fields");
       return;
     }
 
     setIsPaymentProcessing(true);
     try {
       const dateString = toLocalYMD(selectedDate);
-      const slotStart = new Date(
-        `${dateString}T${convertTo24Hour(selectedSlot)}`
-      );
+      const slotStart = new Date(`${dateString}T${convertTo24Hour(selectedSlot)}`);
       const slotEnd = new Date(
         slotStart.getTime() + (currentDoctor!.slotDurationMinutes || 30) * 60000
       );
+
       const consultationFees = getConsultationPrice();
-      const platformFees = Math.round(consultationFees * 0.1);
+      const platformFees = consultationFees === 0 ? 0 : Math.round(consultationFees * 0.1);
       const totalAmount = consultationFees + platformFees;
 
-      const appointment=await bookAppointment({
+      const appointment = await bookAppointment({
         doctorId: doctorId,
         slotStartIso: slotStart.toISOString(),
         slotEndIso: slotEnd.toISOString(),
@@ -148,14 +153,12 @@ const page = () => {
         totalAmount,
       });
 
-
-      //store appointemnt Id and patinet name for paymnet 
-      if(appointment && appointment?._id) {
+      if (appointment && appointment?._id) {
         setCreatedAppointmentId(appointment._id);
-        setPatientName(appointment.patientId.name || 'Patient')
-      }else{
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-            router.push("/patient/dashboard");
+        setPatientName(appointment.patientId.name || 'Patient');
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        router.push("/patient/dashboard");
       }
     } catch (error: any) {
       console.error(error);
@@ -163,16 +166,9 @@ const page = () => {
     }
   };
 
-  const getConsultationPrice = (): number => {
-    const basePrice = currentDoctor?.fees || 0;
-    const typePrice = consultationType === "Voice Call" ? -100 : 0;
-    return Math.max(0, basePrice + typePrice);
+  const handlePaymentSuccess = (appointment: any) => {
+    router.push("/patient/dashboard");
   };
-
-
-  const handlePaymentSuccess = (appointment:any) => {
-                router.push("/patient/dashboard");
-  }
 
   if (!currentDoctor) {
     return (
@@ -184,8 +180,6 @@ const page = () => {
       </div>
     );
   }
-
-  console.log("this is my current doctor", currentDoctor);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -211,7 +205,6 @@ const page = () => {
             </div>
 
             {/* Process Indicator */}
-
             <div className="hidden md:flex items-center space-x-4">
               {[1, 2, 3].map((step) => (
                 <React.Fragment key={step}>
@@ -223,7 +216,7 @@ const page = () => {
                     <div
                       className={`w-8 h-8 rounded-full border-2 ${
                         currentStep >= step
-                          ? "bg-blue-600 border-blue-600 "
+                          ? "bg-blue-600 border-blue-600"
                           : "border-gray-200"
                       } flex items-center justify-center`}
                     >
@@ -235,13 +228,8 @@ const page = () => {
                         </span>
                       )}
                     </div>
-
                     <span className="text-sm font-medium">
-                      {step === 1
-                        ? "Select Time"
-                        : step === 2
-                        ? "Deatils"
-                        : "Payment"}
+                      {step === 1 ? "Select Time" : step === 2 ? "Details" : "Payment"}
                     </span>
                   </div>
                   {step < 3 && <div className="w-12 h-px bg-gray-300"></div>}
@@ -270,16 +258,15 @@ const page = () => {
                       exit={{ opacity: 0, x: -20 }}
                     >
                       <CalendarStep
-                       selectedDate={selectedDate}
-                       setSelectedDate={setSelectedDate}
-                       selectedSlot={selectedSlot}
-                       setSelectedSlot={setSelectedSlot}
-                       availableSlots={availableSlots}
-                       availableDates={availableDates}
-                       excludedWeekdays={currentDoctor?.availabilityRange?.excludedWeekdays || []}
-                       bookedSlots={bookedSlots}
-                       onContinue={() => setCurrentStep(2)}
-                      
+                        selectedDate={selectedDate}
+                        setSelectedDate={setSelectedDate}
+                        selectedSlot={selectedSlot}
+                        setSelectedSlot={setSelectedSlot}
+                        availableSlots={availableSlots}
+                        availableDates={availableDates}
+                        excludedWeekdays={currentDoctor?.availabilityRange?.excludedWeekdays || []}
+                        bookedSlots={bookedSlots}
+                        onContinue={() => setCurrentStep(2)}
                       />
                     </motion.div>
                   )}
@@ -291,14 +278,16 @@ const page = () => {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                     >
-                      <ConsultationStep 
-                       consultationType={consultationType}
-                       setConsultationType={setConsultationType}
-                       setSymptoms={setSymptoms}
-                       symptoms={symptoms}
-                       doctorFees={currentDoctor?.fees}
-                       onBack={() => setCurrentStep(1)}
-                       onContinue={() => setCurrentStep(3)}
+                      <ConsultationStep
+                        consultationType={consultationType}
+                        setConsultationType={setConsultationType}
+                        setSymptoms={setSymptoms}
+                        symptoms={symptoms}
+                        doctorFees={currentDoctor?.fees}
+                        doctorId={doctorId}
+                        discountType={discountType}
+                        onBack={() => setCurrentStep(1)}
+                        onContinue={() => setCurrentStep(3)}
                       />
                     </motion.div>
                   )}
@@ -310,20 +299,20 @@ const page = () => {
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                     >
-                      <PaymentStep 
-                      selectedDate={selectedDate}
-                      selectedSlot={selectedSlot}
-                      consultationType={consultationType}
-                      doctorName={currentDoctor.name}
-                      slotDuration={currentDoctor.slotDurationMinutes}
-                      consultationFee={getConsultationPrice()}
-                      isProcessing={isPaymentProcessing}
-                            onBack={() => setCurrentStep(2)}
-                            onConfirm={handleBooking}
-                            onPaymentSuccess={handlePaymentSuccess}
-                            loading={loading}
-                            appointmentId={createdAppointmentId || undefined}
-                            patientName={patientName || undefined}
+                      <PaymentStep
+                        selectedDate={selectedDate}
+                        selectedSlot={selectedSlot}
+                        consultationType={consultationType}
+                        doctorName={currentDoctor.name}
+                        slotDuration={currentDoctor.slotDurationMinutes}
+                        consultationFee={getConsultationPrice()}
+                        isProcessing={isPaymentProcessing}
+                        onBack={() => setCurrentStep(2)}
+                        onConfirm={handleBooking}
+                        onPaymentSuccess={handlePaymentSuccess}
+                        loading={loading}
+                        appointmentId={createdAppointmentId || undefined}
+                        patientName={patientName || undefined}
                       />
                     </motion.div>
                   )}

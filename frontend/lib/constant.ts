@@ -120,15 +120,15 @@ export const specializations = [
 
     export const faqs = [
     {
-      question: "How much does a doctor visit with MediCare+ cost?",
-      answer: "With insurance, you pay your copay based on your plan. We accept most plans, including Medicare. Without insurance, online doctor visits are $129. You can become a MediCare+ member and pay $44/visit. Membership is $55 for three months and $180 for a yearly membership."
+      question: "How much does a doctor visit with UniCare+ cost?",
+      answer: "With insurance, you pay your copay based on your plan. We accept most plans, including UniCare. Without insurance, online doctor visits are $129. You can become a UniCare+ member and pay $44/visit. Membership is $55 for three months and $180 for a yearly membership."
     },
     {
       question: "Do you accept health insurance?",
-      answer: "Yes, we accept most major health insurance plans including Medicare, BlueCross BlueShield, Aetna, United Healthcare, Cigna, Humana, and many others. We also accept FSA and HSA payments."
+      answer: "Yes, we accept most major health insurance plans including UniCare, BlueCross BlueShield, Aetna, United Healthcare, Cigna, Humana, and many others. We also accept FSA and HSA payments."
     },
     {
-      question: "What conditions can MediCare+ doctors treat?",
+      question: "What conditions can UniCare+ doctors treat?",
       answer: "Our doctors can treat a wide range of conditions including cold and flu symptoms, allergies, skin conditions, mental health concerns, chronic condition management, and much more through virtual consultations."
     },
     {
@@ -146,11 +146,11 @@ export const specializations = [
   export const contactInfo = [
   {
     icon: Phone,
-    text: "1-888-MEDICARE (1-888-633-4227)",
+    text: "+91-8931878476",
   },
   {
     icon: Mail,
-    text: "support@medicare-plus.com",
+    text: "uniservices013@gmail.com",
   },
   {
     icon: MapPin,
@@ -193,10 +193,10 @@ export const specializations = [
 
 
   export const socials = [
-  { name: "twitter", icon: Twitter, url: "https://twitter.com/medicare-plus" },
-  { name: "facebook", icon: Facebook, url: "https://facebook.com/medicare-plus" },
-  { name: "linkedin", icon: Linkedin, url: "https://linkedin.com/company/medicare-plus" },
-  { name: "instagram", icon: Instagram, url: "https://instagram.com/medicare-plus"},
+  { name: "twitter", icon: Twitter, url: "https://twitter.com/UniCare-plus" },
+  { name: "facebook", icon: Facebook, url: "https://facebook.com/UniCare-plus" },
+  { name: "linkedin", icon: Linkedin, url: "https://linkedin.com/company/UniCare-plus" },
+  { name: "instagram", icon: Instagram, url: "https://instagram.com/UniCare-plus"},
 ]
 
 

@@ -1,134 +1,168 @@
-import { Doctor } from '@/lib/types'
-import React from 'react'
-import { Card, CardContent } from '../ui/card'
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
-import { Award, Heart, MapPin, Star, Clock, BadgeCheck } from 'lucide-react'
-import { Badge } from '../ui/badge'
+import { Doctor } from '@/lib/types';
+import React from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Award, BadgeCheck, Clock, Heart, MapPin, Star } from 'lucide-react';
 
 interface DoctorProfileInterface {
-  doctor: Doctor
+  doctor: Doctor;
 }
 
 const DoctorProfile = ({ doctor }: DoctorProfileInterface) => {
   return (
-    <Card className="sticky top-8 overflow-hidden rounded-2xl border border-gray-100 shadow-xl">
-      {/* Hero banner */}
-      <div className="relative h-28 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600" />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,600&display=swap');
+        .uc-font  { font-family: 'DM Sans', system-ui, sans-serif; }
+        .uc-serif { font-family: 'Fraunces', Georgia, serif; }
 
-      <CardContent className="px-6 pb-6 pt-0">
-        {/* Avatar — overlaps banner */}
-        <div className="relative -mt-14 mb-4 flex flex-col items-center">
-          <Avatar className="h-28 w-28 ring-4 ring-white shadow-lg">
-            <AvatarImage
-              src={doctor?.profileImage}
-              alt={doctor?.name}
-              className="object-cover"
-            />
-            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-3xl font-bold text-white">
-              {doctor?.name?.charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
+        @keyframes card-in {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .card-animate { animation: card-in 0.55s cubic-bezier(0.16,1,0.3,1) both; }
 
-          {doctor.isVerified && (
-            <span className="mt-2 flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-              <BadgeCheck className="h-3.5 w-3.5" />
-              Verified
-            </span>
-          )}
+        @keyframes badge-pop {
+          from { transform: scale(0.8); opacity: 0; }
+          to   { transform: scale(1); opacity: 1; }
+        }
+        .badge-pop { animation: badge-pop 0.4s cubic-bezier(0.16,1,0.3,1) 0.3s both; }
+
+        .cat-badge {
+          transition: all 0.18s ease;
+        }
+        .cat-badge:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 10px rgba(14,165,233,0.15);
+        }
+
+        @keyframes fee-shine {
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+      `}</style>
+
+      <div className='uc-font card-animate sticky top-24 rounded-3xl overflow-hidden border border-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.08)] bg-white'>
+
+        {/* ─── Hero Banner ─────────────────────────── */}
+        <div className='relative h-24 bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900 overflow-hidden'>
+          {/* Subtle pattern */}
+          <div className='absolute inset-0 opacity-10' style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.4) 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
+          <div className='absolute bottom-0 right-0 w-40 h-40 bg-sky-500/10 rounded-full blur-2xl' />
         </div>
 
-        {/* Name & meta */}
-        <div className="mb-5 text-center">
-          <h2 className="text-xl font-bold text-gray-900">{doctor.name}</h2>
-          <p className="mt-0.5 text-sm font-medium text-indigo-600">{doctor.specialization}</p>
-          <p className="mt-0.5 text-xs text-gray-400">{doctor.qualification}</p>
-
-          {/* Stats row */}
-          <div className="mt-4 flex items-center justify-center gap-6">
-            <div className="flex flex-col items-center">
-              <div className="flex items-center gap-0.5">
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Star key={s} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                ))}
-              </div>
-              <span className="mt-0.5 text-xs text-gray-500">5.0 Rating</span>
+        {/* ─── Avatar overlapping banner ───────────── */}
+        <div className='px-6 pb-6 pt-0'>
+          <div className='relative -mt-12 flex flex-col items-center mb-5'>
+            <div className='relative'>
+              <Avatar className='h-24 w-24 ring-4 ring-white shadow-xl'>
+                <AvatarImage src={doctor?.profileImage} alt={doctor?.name} className='object-cover' />
+                <AvatarFallback className='bg-gradient-to-br from-sky-400 to-sky-600 text-2xl font-bold text-white'>
+                  {doctor?.name?.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              {doctor.isVerified && (
+                <div className='badge-pop absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center shadow-md'>
+                  <BadgeCheck className='w-4 h-4 text-white' />
+                </div>
+              )}
             </div>
 
-            <div className="h-8 w-px bg-gray-200" />
-
-            <div className="flex flex-col items-center">
-              <span className="text-sm font-bold text-gray-800">{doctor.experience}+</span>
-              <span className="text-xs text-gray-500">Yrs Exp.</span>
-            </div>
-
-            <div className="h-8 w-px bg-gray-200" />
-
-            <div className="flex flex-col items-center">
-              <span className="text-sm font-bold text-gray-800">New</span>
-              <span className="text-xs text-gray-500">Doctor</span>
-            </div>
+            {doctor.isVerified && (
+              <span className='mt-2.5 flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-700'>
+                <BadgeCheck className='h-3 w-3' />
+                Verified Doctor
+              </span>
+            )}
           </div>
-        </div>
 
-        {/* Category badges */}
-        {doctor.category.length > 0 && (
-          <div className="mb-5 flex flex-wrap justify-center gap-1.5">
-            {doctor.category.map((cat, idx) => (
-              <Badge
-                key={idx}
-                variant="secondary"
-                className="rounded-full bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100 hover:bg-indigo-100"
-              >
-                <Award className="mr-1 h-3 w-3" />
-                {cat}
-              </Badge>
+          {/* ─── Name & Meta ─────────────────────── */}
+          <div className='text-center mb-5'>
+            <h2 className='uc-serif text-xl font-bold text-slate-900 leading-tight'>{doctor.name}</h2>
+            <p className='text-sky-600 text-sm font-semibold mt-0.5'>{doctor.specialization}</p>
+            <p className='text-slate-400 text-xs mt-0.5 font-medium'>{doctor.qualification}</p>
+          </div>
+
+          {/* ─── Stats Row ───────────────────────── */}
+          <div className='grid grid-cols-3 gap-3 mb-5'>
+            {[
+              {
+                top: (
+                  <div className='flex gap-px justify-center'>
+                    {[1,2,3,4,5].map((s) => (
+                      <Star key={s} className='h-3.5 w-3.5 fill-amber-400 text-amber-400' />
+                    ))}
+                  </div>
+                ),
+                bottom: '5.0 Rating',
+              },
+              { top: <span className='uc-serif text-lg font-bold text-slate-900'>{doctor.experience}+</span>, bottom: 'Yrs Exp.' },
+              { top: <span className='uc-serif text-lg font-bold text-slate-900'>New</span>, bottom: 'On Platform' },
+            ].map((stat, i) => (
+              <div key={i} className='bg-[#F8F7F4] rounded-2xl p-3 text-center border border-slate-100'>
+                <div className='flex justify-center mb-1'>{stat.top}</div>
+                <p className='text-[11px] text-slate-400 font-medium'>{stat.bottom}</p>
+              </div>
             ))}
           </div>
-        )}
 
-        {/* Divider */}
-        <hr className="mb-5 border-gray-100" />
+          {/* ─── Category Badges ─────────────────── */}
+          {doctor.category?.length > 0 && (
+            <div className='flex flex-wrap gap-1.5 mb-5 justify-center'>
+              {doctor.category.map((cat, idx) => (
+                <span
+                  key={idx}
+                  className='cat-badge inline-flex items-center gap-1 text-[11px] font-semibold text-sky-700 bg-sky-50 border border-sky-100 px-2.5 py-1 rounded-xl cursor-default'
+                >
+                  <Award className='h-3 w-3' />
+                  {cat}
+                </span>
+              ))}
+            </div>
+          )}
 
-        {/* About */}
-        <div className="mb-4">
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-gray-400">
-            About
-          </h3>
-          <p className="text-sm leading-relaxed text-gray-600">{doctor.about}</p>
-        </div>
+          {/* ─── Divider ─────────────────────────── */}
+          <div className='h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mb-5' />
 
-        {/* Hospital info */}
-        {doctor.hospitalInfo && (
-          <div className="mb-4 rounded-xl bg-gray-50 p-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Hospital / Clinic
-            </h3>
-            <p className="text-sm font-semibold text-gray-800">{doctor.hospitalInfo.name}</p>
-            <p className="mt-0.5 text-xs text-gray-500">{doctor.hospitalInfo.address}</p>
-            <div className="mt-1.5 flex items-center gap-1 text-xs text-gray-500">
-              <MapPin className="h-3.5 w-3.5 text-indigo-400" />
-              {doctor.hospitalInfo.city}
+          {/* ─── About ───────────────────────────── */}
+          <div className='mb-5'>
+            <p className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2'>About</p>
+            <p className='text-sm text-slate-600 leading-relaxed'>{doctor.about}</p>
+          </div>
+
+          {/* ─── Hospital Info ───────────────────── */}
+          {doctor.hospitalInfo && (
+            <div className='mb-5 bg-[#F8F7F4] rounded-2xl p-4 border border-slate-100'>
+              <p className='text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2.5'>Hospital / Clinic</p>
+              <p className='text-sm font-bold text-slate-800 leading-tight'>{doctor.hospitalInfo.name}</p>
+              <p className='text-xs text-slate-500 mt-1'>{doctor.hospitalInfo.address}</p>
+              <div className='flex items-center gap-1.5 mt-2'>
+                <MapPin className='h-3.5 w-3.5 text-sky-400 flex-shrink-0' />
+                <span className='text-xs text-slate-500'>{doctor.hospitalInfo.city}</span>
+              </div>
+            </div>
+          )}
+
+          {/* ─── Consultation Fee Card ───────────── */}
+          <div className='relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white'>
+            <div className='absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-full blur-2xl pointer-events-none' />
+            <div className='relative z-10 flex items-center justify-between'>
+              <div>
+                <p className='text-[11px] font-semibold text-slate-400 uppercase tracking-wider'>Consultation Fee</p>
+                <p className='uc-serif text-3xl font-bold text-white mt-1 tracking-tight'>{doctor.fees}</p>
+                <div className='flex items-center gap-1.5 mt-1.5'>
+                  <Clock className='h-3.5 w-3.5 text-sky-400' />
+                  <span className='text-xs text-slate-400 font-medium'>{doctor.slotDurationMinutes} min session</span>
+                </div>
+              </div>
+              <div className='w-12 h-12 bg-sky-500/15 border border-sky-500/20 rounded-2xl flex items-center justify-center'>
+                <Heart className='h-6 w-6 text-sky-400' />
+              </div>
             </div>
           </div>
-        )}
-
-        {/* Consultation fee */}
-        <div className="flex items-center justify-between rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 text-white shadow-md shadow-emerald-100">
-          <div>
-            <p className="text-xs font-medium text-emerald-100">Consultation Fee</p>
-            <p className="mt-0.5 text-3xl font-extrabold tracking-tight">{doctor.fees}</p>
-            <div className="mt-1 flex items-center gap-1 text-xs text-emerald-200">
-              <Clock className="h-3.5 w-3.5" />
-              {doctor.slotDurationMinutes} min session
-            </div>
-          </div>
-          <div className="rounded-full bg-white/20 p-3 backdrop-blur-sm">
-            <Heart className="h-7 w-7 text-white" />
-          </div>
         </div>
-      </CardContent>
-    </Card>
-  )
-}
+      </div>
+    </>
+  );
+};
 
-export default DoctorProfile
+export default DoctorProfile;

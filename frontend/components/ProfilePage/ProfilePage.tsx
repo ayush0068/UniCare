@@ -1,839 +1,619 @@
 'use client'
 
 import { healthcareCategories, specializations } from '@/lib/constant';
-import { userAuthStore } from '@/store/authStore'
-import { Clock, FileText, Heart, MapPin, Phone, Plus, Stethoscope, User, X } from 'lucide-react';
-import React, { ChangeEvent, useEffect, useState } from 'react'
-import { start } from 'repl';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
+import { userAuthStore } from '@/store/authStore';
+import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Stethoscope, User, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import Header from '../landing/Header';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Textarea } from '../ui/textarea';
-import { Value } from '@radix-ui/react-select';
-import { Badge } from '../ui/badge';
 import { Checkbox } from '../ui/checkbox';
 
-
-
-
 interface ProfileProps {
-    userType : 'doctor' | 'patient'
+  userType: 'doctor' | 'patient';
 }
 
-const ProfilePage = ({userType} : ProfileProps) => {
+const ProfilePage = ({ userType }: ProfileProps) => {
+  const { user, fetchProfile, updateProfile, loading } = userAuthStore();
+  const [activeSection, setActiveSection] = useState('about');
+  const [isEditing, setIsEditing] = useState(false);
 
-    const {user, fetchProfile, updateProfile, loading} = userAuthStore();
-    const [activeSection, setActiveSection] = useState('about');
-    const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<any>({
+    name: '', email: '', phone: '', dob: '', gender: '', bloodGroup: '', about: '',
+    specializations: '', category: '', qualification: '', experience: '', fees: 0,
+    hospitalInfo: { name: '', address: '', city: '' },
+    medicalHistory: { allergies: '', currentMedications: '', chronicConditions: '' },
+    emergencyContact: { name: '', phone: '', relationship: '' },
+    availabilityRange: { startDate: '', endDate: '', excludedWeekdays: [] },
+    dailyTimeRanges: [],
+    slotDurationMinutes: 30,
+  });
 
-    const [formData, setFormData] = useState<any>({
-        name: '',
-        email: '',
-        phone: '',
-        dob: '',
-        gender: '', 
-        bloodGroup: '',
-        about: '',
-        specializations: '',
-        category: '',
-        qualification: '',
-        experience: '',
-        fees: 0,
-        hospitalInfo: {
-            name: '',
-            address: '',
-            city: '',
-        },
-        medicalHistory: {
-            allergies: '',
-            currentMedications: '',
-            chronicConditions: '',
-        },
-        emergencyContact: {
-            name: '',
-            phone: '',
-            relationship: '',
-        },
-        availabilityRange: {
-            startDate: '',
-            endDate: '',
-            excludedWeekdays: [],
-        },
-        dailyTimeRanges: [],
-        slotDurationMinutes: 30,
-    });
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
-
-    useEffect(() => {
-        if(user) {
-            
-            setFormData({
-                name: user.name || '',
-                email: user.email || '',
-                phone: user.phone || '',
-                dob: user.dob || '',
-                gender: user.gender || '',
-                bloodGroup: user.bloodGroup || '',
-                about: user.about || '',
-                specializations: user.specialization || '',
-                category: user.category || '',
-                qualification: user.qualification || '',
-                experience: user.experience || '',
-                fees: user.fees || 0,
-                hospitalInfo: {
-                    name: user.hospitalInfo?.name || '',
-                    address: user.hospitalInfo?.address || '',
-                    city: user.hospitalInfo?.city || '',
-                },
-                medicalHistory: {
-                    allergies: user.medicalHistory?.allergies || '',
-                    currentMedications: user.medicalHistory?.currentMedications || '',
-                    chronicConditions: user.medicalHistory?.chronicConditions || '',
-                },
-                emergencyContact: {
-                    name: user.emergencyContact?.name || '',
-                    phone: user.emergencyContact?.phone || '',
-                    relationship: user.emergencyContact?.relationship || '',
-                },
-                availabilityRange: {
-                    startDate: user.availabilityRange?.startDate || '',
-                    endDate: user.availabilityRange?.endDate || '',
-                    excludedWeekdays: user.availabilityRange?.excludedWeekdays || [],
-                },
-                dailyTimeRanges: user.dailyTimeRanges || [],
-                slotDurationMinutes: user.slotDurationMinutes || 30
-            });
-        }
-    },[user]);
-
-    const handleInputChange = (field: string, value: any) => {
-
-        if (field.includes('.')) {
-            const [parent, child] = field.split('.');
-
-            setFormData((prev: any) => ({
-                ...prev,
-                [parent]: {
-                    ...prev[parent],
-                    [child]: value
-                }
-            }))
-        }else{
-            setFormData((prev: any) => ({...prev, [field]: value}))
-        }
-
-    };
-
-    const handleArrayChange = (
-        field: string,
-        index: number,
-        subField: string,
-        value: any
-    ) => {
-        setFormData((prev: any) => ({
-            ...prev,
-            [field]: prev[field].map((item: any, i: number) => 
-            i===index ? {...item, [subField]: value}: item
-        ),
-        }));
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '', email: user.email || '', phone: user.phone || '',
+        dob: user.dob || '', gender: user.gender || '', bloodGroup: user.bloodGroup || '',
+        about: user.about || '', specializations: user.specialization || '',
+        category: user.category || '', qualification: user.qualification || '',
+        experience: user.experience || '', fees: user.fees || 0,
+        hospitalInfo: { name: user.hospitalInfo?.name || '', address: user.hospitalInfo?.address || '', city: user.hospitalInfo?.city || '' },
+        medicalHistory: { allergies: user.medicalHistory?.allergies || '', currentMedications: user.medicalHistory?.currentMedications || '', chronicConditions: user.medicalHistory?.chronicConditions || '' },
+        emergencyContact: { name: user.emergencyContact?.name || '', phone: user.emergencyContact?.phone || '', relationship: user.emergencyContact?.relationship || '' },
+        availabilityRange: { startDate: user.availabilityRange?.startDate || '', endDate: user.availabilityRange?.endDate || '', excludedWeekdays: user.availabilityRange?.excludedWeekdays || [] },
+        dailyTimeRanges: user.dailyTimeRanges || [],
+        slotDurationMinutes: user.slotDurationMinutes || 30,
+      });
     }
+  }, [user]);
 
-
-
-    const handleCategorySelect = (category: any): void => {
-        if(!formData.category.includes(category.title)) {
-            handleInputChange('category', [...formData.category, category.title])
-        }
-    };
-
-    const handleCategoryDelete = (indexToDelete: number) => {
-        const currentCategories = [...formData.category];
-        const newCategories = currentCategories.filter((_:any, i:number) =>  i !== indexToDelete);
-        setFormData((prev: any) => ({
-            ...prev,
-            category: newCategories,
-        }))
+  const handleInputChange = (field: string, value: any) => {
+    if (field.includes('.')) {
+      const [parent, child] = field.split('.');
+      setFormData((prev: any) => ({ ...prev, [parent]: { ...prev[parent], [child]: value } }));
+    } else {
+      setFormData((prev: any) => ({ ...prev, [field]: value }));
     }
+  };
 
+  const handleArrayChange = (field: string, index: number, subField: string, value: any) => {
+    setFormData((prev: any) => ({
+      ...prev,
+      [field]: prev[field].map((item: any, i: number) => i === index ? { ...item, [subField]: value } : item),
+    }));
+  };
 
-    const  getAvailableCategories = () => {
-        return healthcareCategories.filter((cat) => !formData.category.includes(cat.title))
+  const handleCategorySelect = (category: any) => {
+    if (!formData.category.includes(category.title)) {
+      handleInputChange('category', [...formData.category, category.title]);
     }
+  };
 
+  const handleCategoryDelete = (indexToDelete: number) => {
+    const newCats = [...formData.category].filter((_: any, i: number) => i !== indexToDelete);
+    setFormData((prev: any) => ({ ...prev, category: newCats }));
+  };
 
-    const addTimeRange = () => {
-        setFormData((prev: any) => ({
-            ...prev,
-            dailyTimeRanges: [...prev.dailyTimeRanges, {start: '09:00', end: '17:00'}]
-        }))
-    }
+  const getAvailableCategories = () => healthcareCategories.filter((cat) => !formData.category.includes(cat.title));
 
-    const removeTimeRange = (index:number) => {
-        setFormData((prev: any) => ({
-            ...prev,
-            dailyTimeRanges: prev.dailyTimeRanges.filter(
-                (_:any, i:number) => i !== index
-            )
-        }))
-    }
+  const addTimeRange = () => {
+    setFormData((prev: any) => ({ ...prev, dailyTimeRanges: [...prev.dailyTimeRanges, { start: '09:00', end: '17:00' }] }));
+  };
 
-    const handleWeekdayToogle = (weekday: number) => {
-        const excludedWeekdays = [...formData.availabilityRange.excludedWeekdays];
-        const index = excludedWeekdays.indexOf(weekday);
+  const removeTimeRange = (index: number) => {
+    setFormData((prev: any) => ({ ...prev, dailyTimeRanges: prev.dailyTimeRanges.filter((_: any, i: number) => i !== index) }));
+  };
 
-        if(index > -1) {
-            excludedWeekdays.splice(index, 1);
-        } else {
-            excludedWeekdays.push(weekday);
-        }
+  const handleWeekdayToggle = (weekday: number) => {
+    const arr = [...formData.availabilityRange.excludedWeekdays];
+    const idx = arr.indexOf(weekday);
+    if (idx > -1) arr.splice(idx, 1); else arr.push(weekday);
+    handleInputChange('availabilityRange.excludedWeekdays', arr);
+  };
 
+  const handleSave = async () => {
+    try { await updateProfile(formData); setIsEditing(false); } catch (err) { console.error(err); }
+  };
 
-        handleInputChange('availabilityRange.excludedWeekdays', excludedWeekdays)
-    }
+  const formatDateForInput = (isoDate: string): string => {
+    if (!isoDate) return '';
+    const d = new Date(isoDate);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+  };
 
-    const handleSave = async () => {
-        try {
-            await updateProfile(formData)
-            setIsEditing(false);
-        } catch (error) {
-            console.error(error)
-        }
-    };
+  const isDoctor = userType === 'doctor';
 
-    const formatDateForInput = (isoDate: string) : string => {
-        if(!isoDate) return '';
-        const date = new Date(isoDate);
-        if(isNaN(date.getTime())) return '';
-        return date.toISOString().split('T')[0];
-    };
+  const sidebarItems = isDoctor
+    ? [
+        { id: 'about', label: 'About', icon: User },
+        { id: 'professional', label: 'Professional Info', icon: Stethoscope },
+        { id: 'hospital', label: 'Hospital / Clinic', icon: MapPin },
+        { id: 'availability', label: 'Availability', icon: Clock },
+      ]
+    : [
+        { id: 'about', label: 'Personal Info', icon: User },
+        { id: 'contact', label: 'Contact', icon: Phone },
+        { id: 'medical', label: 'Medical History', icon: FileText },
+        { id: 'emergency', label: 'Emergency Contact', icon: Heart },
+      ];
 
-    const sidebarItems = userType === 'doctor'?
-        [
-            {id: 'about', label: 'About', icon: User },
-            {id: 'professional', label: 'Professional Info', icon: Stethoscope},
-            {id: 'hospital', label: 'Hospital Information', icon: MapPin},
-            {id: 'availability', label: 'Availability', icon: Clock},
-        ]
+  /* ─── Reusable field components ─── */
+  const FieldWrapper = ({ label, children }: { label: string; children: React.ReactNode }) => (
+    <div className='space-y-2'>
+      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+      {children}
+    </div>
+  );
 
-        :
-        [
-            {id: 'about', label: 'About', icon: User },
-            {id: 'contact', label: 'Contact', icon: Phone},
-            {id: 'medical', label: 'Medical History', icon: FileText},
-            {id: 'emergency', label: 'Emergency Contact', icon: Phone},
-        ]; 
+  const UCInput = ({ value, onChange, type = 'text', placeholder = '', readOnly = false }: any) => (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      readOnly={readOnly || !isEditing}
+      placeholder={placeholder}
+      className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 transition-all duration-200
+        ${!isEditing || readOnly
+          ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
+          : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
+        }`}
+    />
+  );
 
+  const UCTextarea = ({ value, onChange, rows = 4, placeholder = '' }: any) => (
+    <textarea
+      value={value}
+      onChange={onChange}
+      disabled={!isEditing}
+      rows={rows}
+      placeholder={placeholder}
+      className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 resize-none transition-all duration-200
+        ${!isEditing
+          ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
+          : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
+        }`}
+    />
+  );
 
-    const  renderAboutSection = () => (
-        <div className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                <div className='flex flex-col gap-2'>
-                    <Label>Legal First Name</Label>
-                    <Input 
-                        value={formData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        disabled={!isEditing}
-                        className='w-80'
-                    />
-                </div>
-                
+  /* ─── Section renderers ─── */
+  const renderAboutSection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Full Name'>
+        <UCInput value={formData.name} onChange={(e: any) => handleInputChange('name', e.target.value)} placeholder='Your full name' />
+      </FieldWrapper>
+
+      {userType === 'patient' && (
+        <>
+          <FieldWrapper label='Date of Birth'>
+            <UCInput
+              type='date'
+              value={formData.dob ? new Date(formData.dob).toISOString().split('T')[0] : ''}
+              onChange={(e: any) => handleInputChange('dob', e.target.value)}
+            />
+          </FieldWrapper>
+
+          <FieldWrapper label='Gender'>
+            <div className={`flex gap-3 ${!isEditing ? 'pointer-events-none opacity-60' : ''}`}>
+              <RadioGroup
+                value={formData.gender || ''}
+                onValueChange={(v) => handleInputChange('gender', v)}
+                className='flex gap-4 flex-wrap'
+              >
+                {['male', 'female', 'other'].map((g) => (
+                  <label key={g} className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${formData.gender === g ? 'border-sky-400 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white text-slate-600'}`}>
+                    <RadioGroupItem value={g} id={g} className='hidden' />
+                    <span className='text-sm font-semibold capitalize'>{g}</span>
+                  </label>
+                ))}
+              </RadioGroup>
             </div>
+          </FieldWrapper>
 
-            {userType === 'patient' && (
-                <>
-                    <div className='flex flex-col gap-2'>
-                        <Label>Official Date of Birth</Label>
-                        <Input
-                            type='date'
-                            value={formData.dob ? new Date(formData.dob).toISOString().split('T')[0] : ''}
-                            onChange={(e) => handleInputChange('dob', e.target.value ? new Date(formData.dob).toISOString().split('T')[0] : '')}
-                            disabled={!isEditing}
-                            className='w-80'
-                        />
+          <FieldWrapper label='Blood Group'>
+            <Select value={formData.bloodGroup || ''} onValueChange={(v) => handleInputChange('bloodGroup', v)} disabled={!isEditing}>
+              <SelectTrigger className={`rounded-xl border text-sm font-medium transition-all duration-200 ${!isEditing ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-white border-slate-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100'}`}>
+                <SelectValue placeholder='Select blood group' />
+              </SelectTrigger>
+              <SelectContent className='rounded-2xl border-slate-100 shadow-xl'>
+                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((g) => (
+                  <SelectItem key={g} value={g} className='rounded-xl text-sm font-medium'>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FieldWrapper>
+        </>
+      )}
+
+      {isDoctor && (
+        <FieldWrapper label='About / Bio'>
+          <UCTextarea value={formData.about || ''} onChange={(e: any) => handleInputChange('about', e.target.value)} rows={5} placeholder='Tell patients about your expertise, approach, and values...' />
+        </FieldWrapper>
+      )}
+    </div>
+  );
+
+  const renderProfessionalSection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Specialization'>
+        <Select value={formData.specialization || ''} onValueChange={(v) => handleInputChange('specialization', v)} disabled={!isEditing}>
+          <SelectTrigger className={`rounded-xl border text-sm font-medium ${!isEditing ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-white border-slate-200'}`}>
+            <SelectValue placeholder='Select specialization' />
+          </SelectTrigger>
+          <SelectContent className='rounded-2xl border-slate-100 shadow-xl max-h-64'>
+            {specializations.map((s) => (
+              <SelectItem key={s} value={s} className='rounded-xl text-sm'>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldWrapper>
+
+      <FieldWrapper label='Categories'>
+        <div className='space-y-3'>
+          <div className='flex flex-wrap gap-2'>
+            {formData.category?.map((cat: string, i: number) => {
+              const catData = healthcareCategories.find(c => c.title === cat);
+              return (
+                <span key={i} className={`inline-flex items-center gap-1.5 text-xs font-semibold text-white px-3 py-1.5 rounded-xl shadow-sm ${catData?.color || 'bg-slate-500'}`}>
+                  {cat}
+                  {isEditing && (
+                    <button type='button' onClick={() => handleCategoryDelete(i)} className='w-3.5 h-3.5 rounded-full bg-white/20 hover:bg-white/40 flex items-center justify-center transition-colors'>
+                      <X className='w-2.5 h-2.5' />
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+          {isEditing && getAvailableCategories().length > 0 && (
+            <Select onValueChange={(v) => { const cat = getAvailableCategories().find(c => c.id === v); if (cat) handleCategorySelect(cat); }}>
+              <SelectTrigger className='w-52 rounded-xl border-dashed border-slate-300 text-sm text-slate-500 bg-white'>
+                <SelectValue placeholder='+ Add category' />
+              </SelectTrigger>
+              <SelectContent className='rounded-2xl border-slate-100 shadow-xl'>
+                {getAvailableCategories().map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id} className='rounded-xl text-sm'>
+                    <div className='flex items-center gap-2'>
+                      <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                      {cat.title}
                     </div>
-
-                    <div className='flex flex-col gap-2'>
-                        <Label>Gender</Label>
-                        <RadioGroup 
-                            value={formData.gender || ''}
-                            onValueChange={(value) => handleInputChange('gender', value)}
-                            disabled={!isEditing}
-                            className='flex space-y-2'  
-                        >
-
-                            <div className='flex items-center space-x-2'>
-                                <RadioGroupItem value='male' id='male' />
-                                <Label htmlFor='male' >
-                                    Male
-                                </Label>
-                            </div>
-
-                            <div className='flex items-center space-x-2'>
-                                <RadioGroupItem value='female' id='female' />
-                                <Label htmlFor='female' >
-                                    Female
-                                </Label>
-                            </div>
-
-                            <div className='flex items-center space-x-2'>
-                                <RadioGroupItem value='other' id='other' />
-                                <Label htmlFor='other' >
-                                    Other
-                                </Label>
-                            </div>
-
-                        </RadioGroup>
-                    </div>
-
-                    <div className='flex flex-col gap-2'>
-                        <Label>Blood Group</Label>
-                        <Select 
-                            value={formData.bloodGroup || ''}
-                            onValueChange={(value) => handleInputChange('bloodGroup', value)}
-                            disabled={!isEditing}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder='Select Blood Group'/>
-                            </SelectTrigger>
-
-                            <SelectContent>
-                                {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map((group) => (
-                                    <SelectItem 
-                                        key={group}
-                                        value={group}
-                                    >
-                                        {group}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-
-                        </Select>
-                    </div>
-                </>
-            )}
-
-            {userType === 'doctor' && (
-                <div>
-                    <Label>
-                        About
-                    </Label>
-                    <Textarea 
-                        value={formData.about || ''}
-                        onChange={(e) => handleInputChange('about', e.target.value)}
-                        disabled={!isEditing}
-                        rows={4}
-                    />
-
-                </div>
-            )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-    );
+      </FieldWrapper>
 
-    const renderProfessionalSection = () => (
-        <div className='space-y-6'>
-            <div className='flex flex-col gap-2'>
-                <Label>Specialization</Label>
-                <Select
-                    value={formData.specialization || ''}
-                    onValueChange={(value) => handleInputChange('specialization', value)}
-                    disabled={!isEditing}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder='Select Specialization' />
-                    </SelectTrigger>
+      <FieldWrapper label='Qualification'>
+        <UCInput value={formData.qualification || ''} onChange={(e: any) => handleInputChange('qualification', e.target.value)} placeholder='e.g. MBBS, MD, MS' />
+      </FieldWrapper>
 
-                    <SelectContent>
-                        {specializations.map((specs) => (
-                            <SelectItem
-                                key={specs}
-                                value={specs}
-                            >
-                                {specs}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
+      <div className='grid grid-cols-2 gap-4'>
+        <FieldWrapper label='Experience (Years)'>
+          <UCInput type='number' value={formData.experience || ''} onChange={(e: any) => handleInputChange('experience', parseInt(e.target.value) || 0)} placeholder='0' />
+        </FieldWrapper>
+        <FieldWrapper label='Consultation Fee (₹)'>
+          <UCInput type='number' value={formData.fees} onChange={(e: any) => handleInputChange('fees', parseInt(e.target.value) || 0)} placeholder='500' />
+        </FieldWrapper>
+      </div>
+    </div>
+  );
 
+  const renderHospitalSection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Hospital / Clinic Name'>
+        <UCInput value={formData.hospitalInfo.name} onChange={(e: any) => handleInputChange('hospitalInfo.name', e.target.value)} placeholder='e.g. Apollo Hospital' />
+      </FieldWrapper>
+      <FieldWrapper label='Address'>
+        <UCTextarea value={formData.hospitalInfo.address} onChange={(e: any) => handleInputChange('hospitalInfo.address', e.target.value)} rows={3} placeholder='Full street address' />
+      </FieldWrapper>
+      <FieldWrapper label='City'>
+        <UCInput value={formData.hospitalInfo.city} onChange={(e: any) => handleInputChange('hospitalInfo.city', e.target.value)} placeholder='City name' />
+      </FieldWrapper>
+    </div>
+  );
 
-                </Select>
-            </div>
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-                <div className='flex flex-col gap-2'>
-                        <Label>Category</Label>
-                        <div className='flex flex-wrap gap-2 mt-2'>
-                            {formData.category?.map((cat: string, index: number) => (
-                                <Badge
-                                    key={index}
-                                    variant='secondary'
-                                    className={`flex items-center space-x-2 text-white ${healthcareCategories.find(c => c.title === cat)?.color || 'bg-gray-400'
-                                        }`}
-                                >
-                                    <span>{cat}</span>
-                                    {isEditing && (
-                                        <button
-                                            type='button'
-                                            className='ml-1 p-0 border-0 bg-transparent cursor-pointer hover:bg-gray-200 rounded-full'
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                handleCategoryDelete(index);
-                                            }}
-                                        >
-                                            <X className='w-3 h-3' />
+  const renderAvailabilitySection = () => (
+    <div className='space-y-6'>
+      <div className='grid grid-cols-2 gap-4'>
+        <FieldWrapper label='Available From'>
+          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.startDate)} onChange={(e: any) => handleInputChange('availabilityRange.startDate', e.target.value)} />
+        </FieldWrapper>
+        <FieldWrapper label='Available Until'>
+          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.endDate)} onChange={(e: any) => handleInputChange('availabilityRange.endDate', e.target.value)} />
+        </FieldWrapper>
+      </div>
 
-                                        </button>
-                                    )}
-                                </Badge>
-
-                            ))}
-
-                            {isEditing && getAvailableCategories().length > 0 && (
-                                <Select
-                                    onValueChange={(value) => {
-                                        const selectedCategory = getAvailableCategories().find(cate => cate.id === value);
-                                        if(selectedCategory) {
-                                            handleCategorySelect(selectedCategory)
-                                        }
-                                    }}
-                                >   
-                                    <SelectTrigger className='w-48'>
-                                        <SelectValue placeholder='Select Category' />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {getAvailableCategories().map((category) => (
-                                            <SelectItem
-                                                key={category.id}
-                                                value={category.id}
-                                            >
-                                                <div className='flex items-center space-x-2'>
-                                                    <div className={`w-3 h-3 rounded-full ${category.color}`}>
-
-                                                    </div>
-                                                    <span>
-                                                        {category.title}
-                                                    </span>
-                                                </div>
-                                            </SelectItem>
-                                        ))}
-
-                                    </SelectContent>
-
-                                </Select>
-                            )}
-
-                            {isEditing && getAvailableCategories().length === 0 && (
-                                <span className='text-sm gray-500'>
-                                    All categories have been selected
-                                </span>
-                            )}
-                        </div>
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                    <Label>Qualification</Label>
-                    <Input 
-                        value={formData.qualification || ''}
-                        onChange={(e) => handleInputChange('qualification', e.target.value)}
-                        disabled={!isEditing}
-                        
-                    />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                    <Label>Experience (Years)</Label>
-                    <Input
-                        type='number' 
-                        value={formData.experience || ''}
-                        onChange={(e) => handleInputChange('experience', parseInt(e.target.value) || 0) }
-                        disabled={!isEditing}
-                        
-                    />
-                </div>
-                
-                <div className='flex flex-col gap-2'>
-                    <Label>Consultation Fee(₹)</Label>
-                    <Input 
-                        type='number'
-                        value={formData.fees}
-                        onChange={(e) => handleInputChange('fees', parseInt(e.target.value) || 0)}
-                        disabled={!isEditing}
-                        
-                    />
-                </div>
-        </div>
-    );
-
-    const renderHospitalSection = () => (
-        <div className='space-y-6'>
-            <div className='flex flex-col gap-2'>
-                    <Label>Hospital/Clinic Name</Label>
-                    <Input 
-                        value={formData.hospitalInfo.name}
-                        onChange={(e) => handleInputChange('hospitalInfo.name', e.target.value)}
-                        disabled={!isEditing}
-                        
-                    />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                    <Label>Address</Label>
-                    <Textarea
-                        value={formData.hospitalInfo.address}
-                        onChange={(e) => handleInputChange('hospitalInfo.address', e.target.value)}
-                        disabled={!isEditing}
-                        rows={3}
-                    />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                    <Label>City</Label>
-                    <Input 
-                        value={formData.hospitalInfo.city}
-                        onChange={(e) => handleInputChange('hospitalInfo.city', e.target.value)}
-                        disabled={!isEditing}
-                        
-                    />
-            </div>
-        </div>
-    );
-
-    const renderAvailabilitySection = () => (
-        <div className='space-y-6'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                <div className='flex flex-col gap-2'>
-                    <Label>Available From</Label>
-                    <Input 
-                        type='date'
-                        value={formatDateForInput(formData.availabilityRange.startDate)}
-                        onChange={(e) => handleInputChange('availabilityRange.startDate', e.target.value)}
-                        disabled={!isEditing}
-                        
-                    />
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                    <Label>Available Until</Label>
-                    <Input 
-                        type='date'
-                        value={formatDateForInput(formData.availabilityRange.endDate)}
-                        onChange={(e) => handleInputChange('availabilityRange.endDate', e.target.value)}
-                        disabled={!isEditing}
-                        
-                    />
-                </div>
-            </div>
-            
-            <div className='flex flex-col gap-2'>
-                <Label>Excluded Weekdays</Label>
-                <div className='flex flex-wrap gap-2'>
-                    {[
-                        'Sunday',
-                        'Monday',
-                        'TuesDay',
-                        'Wednesday',
-                        'Thursday',
-                        'Friday',
-                        'Saturday',
-                    ].map((day, index) => (
-                        <label key={index} className='flex items-center space-x-2'>
-                            <Checkbox
-                                checked={
-                                    formData.availabilityRange?.excludedWeekdays.includes(index) || false
-                                }
-                                onCheckedChange={() => handleWeekdayToogle(index)}
-                                disabled={!isEditing}
-                            />
-                            <span className='text-sm'>{day}</span>
-                            
-                        </label>
-                    ))}
-                </div>
-            </div>
-
-
-                    <div className='flex flex-col gap-2'>
-                        <Label>Daily Time Range</Label>
-                        <div className='space-y-3'>
-                            {formData.dailyTimeRanges?.map((timeRange: any, index: number) => (
-                                <div className='flex items-center space-x-2' key={index}>
-                                        <Input 
-                                            type='time'
-                                            value={timeRange.start || ''}
-                                            onChange={(e) => handleArrayChange('dailyTimeRanges', index, 'start', e.target.value)}
-                                            disabled={!isEditing}
-                                        />
-                                        <span>To</span>
-                                        <Input 
-                                            type='time'
-                                            value={timeRange.end || ''}
-                                            onChange={(e) => handleArrayChange('dailyTimeRanges', index, 'end', e.target.value)}
-                                            disabled={!isEditing}
-                                        />
-
-
-                                        {isEditing && (
-                                            <Button
-                                                variant='outline'
-                                                size='sm'
-                                                onClick={() => removeTimeRange(index)}
-                                            >
-                                                <X className='w-4 h-4' />
-                                            </Button>
-                                        )}
-                                </div>
-                            ))}
-
-                            {isEditing && (
-                                <Button
-                                    variant='outline'
-                                    size='sm'
-                                    onClick={addTimeRange}
-                                >
-                                    <Plus className='w-4 h-4 mr-2'/>
-                                    Add Time Range
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-
-            <div className='flex flex-col gap-2'>
-                <Label>
-                    Slot Duration (minutes)
-                </Label>
-                <Select
-                    value={formData.slotDurationMinutes?.toString() || '30'}
-                    onValueChange={(value) => handleInputChange('slotDurationMinutes', parseInt(value))}
-                    disabled={!isEditing}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder='Select Slot Duration' />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value='15'>15 Minutes</SelectItem>
-                        <SelectItem value='20'>20 Minutes</SelectItem>
-                        <SelectItem value='30'>30 Minutes</SelectItem>
-                        <SelectItem value='45'>45 Minutes</SelectItem>
-                        <SelectItem value='60'>60 Minutes</SelectItem>
-                        <SelectItem value='90'>90 Minutes</SelectItem>
-                        <SelectItem value='120'>120 Minutes</SelectItem>
-
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
-    );
-
-
-    const renderContactSection = () => (
-        <div className='space-y-6'>
-            <div className='flex flex-col gap-2'>
-                    <Label>Phone Number</Label>
-                    <Input 
-                        placeholder='+91-94xxxxxx99'
-                        value={formData.phone || ''}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                        disabled={!isEditing}
-                    />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                    <Label>Email</Label>
-                    <Input 
-                        value={formData.email || ''}
-                        readOnly
-                        disabled={!isEditing}
-                    />
-            </div>
-        </div>
-    )
-
-    const renderMedicalSection = () => (
-        <div className='space-y-6'>
-            <div className='flex flex-col gap-2'>
-                <Label>Allergies</Label>
-                <Textarea
-                    value={formData.medicalHistory.allergies || ''}
-                    onChange={(e) => handleInputChange('medicalHistory.allergies', e.target.value)}
-                    disabled={!isEditing}
-                    rows={3}
+      <FieldWrapper label='Days Off (Excluded Weekdays)'>
+        <div className='flex flex-wrap gap-2'>
+          {DAYS.map((day, idx) => {
+            const isExcluded = formData.availabilityRange?.excludedWeekdays.includes(idx);
+            return (
+              <label key={idx} className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border cursor-pointer transition-all duration-200 ${!isEditing ? 'pointer-events-none opacity-60' : ''} ${isExcluded ? 'border-red-200 bg-red-50 text-red-700' : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                <Checkbox
+                  checked={isExcluded}
+                  onCheckedChange={() => handleWeekdayToggle(idx)}
+                  disabled={!isEditing}
+                  className='data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500'
                 />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                <Label>Current Medications</Label>
-                <Textarea
-                    value={formData.medicalHistory.currentMedications || ''}
-                    onChange={(e) => handleInputChange('medicalHistory.currentMedications', e.target.value)}
-                    disabled={!isEditing}
-                    rows={3}
-                />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                <Label>Chronic Conditions</Label>
-                <Textarea
-                    value={formData.medicalHistory.chronicConditions || ''}
-                    onChange={(e) => handleInputChange('medicalHistory.chronicConditions', e.target.value)}
-                    disabled={!isEditing}
-                    rows={3}
-                />
-            </div>
+                <span className='text-xs font-semibold'>{day.slice(0, 3)}</span>
+              </label>
+            );
+          })}
         </div>
-    ); 
+      </FieldWrapper>
 
-
-    const renderEmergencySection = () => (
-        <div className='space-y-6'>
-            <div className='flex flex-col gap-2'>
-                    <Label>Emergency Contact Name</Label>
-                    <Input 
-                        value={formData.emergencyContact.name|| ''}
-                        onChange={(e) => handleInputChange('emergencyContact.name', e.target.value)}
-                        disabled={!isEditing}
-                    />
+      <FieldWrapper label='Daily Time Ranges'>
+        <div className='space-y-3'>
+          {formData.dailyTimeRanges?.map((tr: any, i: number) => (
+            <div key={i} className='flex items-center gap-3'>
+              <input type='time' value={tr.start || ''} onChange={(e) => handleArrayChange('dailyTimeRanges', i, 'start', e.target.value)} disabled={!isEditing}
+                className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium ${!isEditing ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-white border-slate-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'}`}
+              />
+              <span className='text-xs font-bold text-slate-400'>TO</span>
+              <input type='time' value={tr.end || ''} onChange={(e) => handleArrayChange('dailyTimeRanges', i, 'end', e.target.value)} disabled={!isEditing}
+                className={`flex-1 px-4 py-2.5 rounded-xl border text-sm font-medium ${!isEditing ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-white border-slate-200 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'}`}
+              />
+              {isEditing && (
+                <button onClick={() => removeTimeRange(i)} className='w-8 h-8 rounded-lg bg-red-50 border border-red-100 flex items-center justify-center text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors'>
+                  <X className='w-3.5 h-3.5' />
+                </button>
+              )}
             </div>
-
-            <div className='flex flex-col gap-2'>
-                    <Label>Emergency Contact Relationship</Label>
-                    <Input 
-                        value={formData.emergencyContact.relationship|| ''}
-                        onChange={(e) => handleInputChange('emergencyContact.relationship', e.target.value)}
-                        disabled={!isEditing}
-                    />
-            </div>
-
-            <div className='flex flex-col gap-2'>
-                    <Label>Emergency Contact Phone</Label>
-                    <Input 
-                        value={formData.emergencyContact.phone|| ''}
-                        onChange={(e) => handleInputChange('emergencyContact.phone', e.target.value)}
-                        disabled={!isEditing}
-                    />
-            </div>
+          ))}
+          {isEditing && (
+            <button onClick={addTimeRange} className='flex items-center gap-2 text-sm font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 border border-sky-100 hover:border-sky-200 px-4 py-2.5 rounded-xl transition-all duration-200'>
+              <Plus className='w-4 h-4' />
+              Add Time Range
+            </button>
+          )}
         </div>
-    )
+      </FieldWrapper>
 
-    const renderContent = () => {
-        switch (activeSection) {
-            case 'about':
-                return renderAboutSection()
-            
-            case 'professional':
-                return renderProfessionalSection()
+      <FieldWrapper label='Slot Duration'>
+        <Select value={formData.slotDurationMinutes?.toString() || '30'} onValueChange={(v) => handleInputChange('slotDurationMinutes', parseInt(v))} disabled={!isEditing}>
+          <SelectTrigger className={`rounded-xl border text-sm font-medium ${!isEditing ? 'bg-slate-50 border-slate-100 text-slate-500' : 'bg-white border-slate-200'}`}>
+            <SelectValue placeholder='Select duration' />
+          </SelectTrigger>
+          <SelectContent className='rounded-2xl border-slate-100 shadow-xl'>
+            {[15, 20, 30, 45, 60, 90, 120].map((m) => (
+              <SelectItem key={m} value={String(m)} className='rounded-xl text-sm'>{m} minutes</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FieldWrapper>
+    </div>
+  );
 
-            case 'hospital':
-                return renderHospitalSection()
+  const renderContactSection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Phone Number'>
+        <UCInput value={formData.phone || ''} onChange={(e: any) => handleInputChange('phone', e.target.value)} placeholder='+91-94xxxxxx99' />
+      </FieldWrapper>
+      <FieldWrapper label='Email Address'>
+        <UCInput value={formData.email || ''} readOnly placeholder='your@email.com' />
+        <p className='text-[11px] text-slate-400'>Email cannot be changed here.</p>
+      </FieldWrapper>
+    </div>
+  );
 
-            case 'availability':
-                return renderAvailabilitySection()
+  const renderMedicalSection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Allergies'>
+        <UCTextarea value={formData.medicalHistory.allergies || ''} onChange={(e: any) => handleInputChange('medicalHistory.allergies', e.target.value)} rows={3} placeholder='List any known allergies...' />
+      </FieldWrapper>
+      <FieldWrapper label='Current Medications'>
+        <UCTextarea value={formData.medicalHistory.currentMedications || ''} onChange={(e: any) => handleInputChange('medicalHistory.currentMedications', e.target.value)} rows={3} placeholder='List current medications and dosage...' />
+      </FieldWrapper>
+      <FieldWrapper label='Chronic Conditions'>
+        <UCTextarea value={formData.medicalHistory.chronicConditions || ''} onChange={(e: any) => handleInputChange('medicalHistory.chronicConditions', e.target.value)} rows={3} placeholder='Any chronic or ongoing conditions...' />
+      </FieldWrapper>
+    </div>
+  );
 
-            case 'contact':
-                return renderContactSection()
+  const renderEmergencySection = () => (
+    <div className='space-y-6'>
+      <FieldWrapper label='Contact Name'>
+        <UCInput value={formData.emergencyContact.name || ''} onChange={(e: any) => handleInputChange('emergencyContact.name', e.target.value)} placeholder='Full name' />
+      </FieldWrapper>
+      <FieldWrapper label='Relationship'>
+        <UCInput value={formData.emergencyContact.relationship || ''} onChange={(e: any) => handleInputChange('emergencyContact.relationship', e.target.value)} placeholder='e.g. Spouse, Parent, Sibling' />
+      </FieldWrapper>
+      <FieldWrapper label='Phone Number'>
+        <UCInput value={formData.emergencyContact.phone || ''} onChange={(e: any) => handleInputChange('emergencyContact.phone', e.target.value)} placeholder='+91-xxxxxxxxxx' />
+      </FieldWrapper>
+    </div>
+  );
 
-            case 'medical':
-                return renderMedicalSection()
-
-            case 'emergency':
-                return renderEmergencySection()
-
-            default:
-                return renderAboutSection()
-        }
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'about': return renderAboutSection();
+      case 'professional': return renderProfessionalSection();
+      case 'hospital': return renderHospitalSection();
+      case 'availability': return renderAvailabilitySection();
+      case 'contact': return renderContactSection();
+      case 'medical': return renderMedicalSection();
+      case 'emergency': return renderEmergencySection();
+      default: return renderAboutSection();
     }
-    
+  };
 
-    if(!user) return <div>Loading....</div>
+  const currentSectionLabel = sidebarItems.find(i => i.id === activeSection)?.label || '';
+
+  if (!user) return (
+    <div className='min-h-screen bg-[#F8F7F4] flex items-center justify-center'>
+      <div className='flex flex-col items-center gap-3'>
+        <div className='w-10 h-10 border-2 border-sky-500 border-t-transparent rounded-full animate-spin' />
+        <p className='text-sm text-slate-400 font-medium'>Loading profile...</p>
+      </div>
+    </div>
+  );
+
   return (
     <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,600&display=swap');
+        .uc-font  { font-family: 'DM Sans', system-ui, sans-serif; }
+        .uc-serif { font-family: 'Fraunces', Georgia, serif; }
+
+        @keyframes page-in {
+          from { opacity: 0; transform: translateY(12px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .page-animate { animation: page-in 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+
+        @keyframes section-fade {
+          from { opacity: 0; transform: translateX(8px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        .section-animate { animation: section-fade 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+
+        .nav-item {
+          transition: all 0.18s ease;
+        }
+        .nav-item:hover:not(.nav-active) {
+          background: rgba(14,165,233,0.06);
+          color: #0284c7;
+        }
+
+        .save-btn {
+          transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+        }
+        .save-btn:not(:disabled):hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 20px rgba(14,165,233,0.25);
+        }
+      `}</style>
+
+      <div className='uc-font min-h-screen bg-[#F8F7F4]'>
         <Header showDashboardNav={true} />
-        <div className='min-h-screen bg-gray-50 pt-16'>
-            <div className='container mx-auto px-4 py-8'>
-                <div className='mb-8'>
-                    <h1 className='text-3xl font-bold text-gray-900'>
-                        Records
+
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16'>
+          <div className='page-animate'>
+
+            {/* ─── Top Profile Hero ────────────────────── */}
+            <div className={`relative rounded-3xl overflow-hidden mb-8 ${
+              isDoctor
+                ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900'
+                : 'bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100'
+            }`}>
+              {/* texture */}
+              <div className='absolute inset-0 opacity-[0.05]' style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+
+              <div className='relative z-10 px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center gap-6'>
+                <div className='relative flex-shrink-0'>
+                  <Avatar className={`w-20 h-20 ring-4 shadow-xl ${isDoctor ? 'ring-slate-700' : 'ring-white'}`}>
+                    <AvatarImage src={user?.profileImage} alt={user?.name} className='object-cover' />
+                    <AvatarFallback className={`text-xl font-bold ${isDoctor ? 'bg-sky-500 text-white' : 'bg-sky-100 text-sky-600'}`}>
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {isEditing && (
+                    <button className='absolute bottom-0 right-0 w-7 h-7 bg-sky-500 rounded-full flex items-center justify-center shadow-lg border-2 border-white'>
+                      <Camera className='w-3.5 h-3.5 text-white' />
+                    </button>
+                  )}
+                </div>
+
+                <div className='flex-1 min-w-0'>
+                  <div className='flex items-center gap-2 mb-1'>
+                    <h1 className={`uc-serif text-2xl font-bold ${isDoctor ? 'text-white' : 'text-slate-900'}`}>
+                      {user?.name}
                     </h1>
+                    {isDoctor && user?.isVerified && (
+                      <BadgeCheck className='w-5 h-5 text-sky-400 flex-shrink-0' />
+                    )}
+                  </div>
+                  <p className={`text-sm font-medium ${isDoctor ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {user?.email}
+                  </p>
+                  <div className='flex items-center gap-2 mt-2'>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
+                      isDoctor ? 'bg-sky-500/20 text-sky-300 border border-sky-500/20' : 'bg-sky-100 text-sky-700 border border-sky-200'
+                    }`}>
+                      {isDoctor ? <Stethoscope className='w-3 h-3' /> : <User className='w-3 h-3' />}
+                      {isDoctor ? 'Medical Professional' : 'Patient'}
+                    </span>
+                  </div>
                 </div>
 
-                <div className='flex items-center space-x-8 mb-8'>
-                    <div className='flex flex-col items-center'>
-                        <Avatar className='w-24 h-24'>
-                            <AvatarImage src={user?.profileImage} alt={user?.name} />
-                            <AvatarFallback className='bg-blue-100 text-blue-600 text-2xl font-bold'>
-                                {user?.name?.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                        </Avatar>
-
-                        <p className='mt-2 text-lg font-semibold'>
-                            {user?.name}
-                        </p>
-                    </div>
+                <div className='flex items-center gap-2 flex-shrink-0'>
+                  {isEditing ? (
+                    <>
+                      <button
+                        onClick={() => setIsEditing(false)}
+                        className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all duration-200 ${
+                          isDoctor ? 'border-slate-600 text-slate-400 hover:bg-slate-700' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
+                        }`}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={loading}
+                        className='save-btn flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                      >
+                        {loading ? (
+                          <><div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />Saving...</>
+                        ) : (
+                          <><Save className='w-4 h-4' />Save Changes</>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-px ${
+                        isDoctor
+                          ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                          : 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-200'
+                      }`}
+                    >
+                      Edit Profile
+                    </button>
+                  )}
                 </div>
-
-                <div className='grid grid-cols-1 lg:grid-cols-4 gap-8'>
-                    <div className='lg:col-span-1'>
-                        <div className='space-y-2'>
-                            {sidebarItems.map((item) => (
-                                <button
-                                    key={item.id}
-                                    onClick={() => setActiveSection(item.id)}
-                                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors ${activeSection === item.id ? 'bg-blue-100 text-blue-600 border border-blue-200' : 'text-gray-600 hover:bg-gray-100'}`}
-                                >
-                                    <item.icon className='w-5 h-5' />
-                                    <span>{item.label}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <div className='lg:col-span-3'>
-                        <Card>
-                            <CardContent>
-                                <div className='flex items-center justify-between mb-6'>
-                                    <h2 className='text-2xl font-semibold capitalize'>
-                                        {sidebarItems.find((item) => item.id === activeSection)?.label}
-                                    </h2>
-                                
-                                <div className='flex space-x-2'>
-                                    {isEditing ? (
-                                        <>
-                                            <Button
-                                                variant='outline'
-                                                onClick={() => setIsEditing(false)}
-                                            >
-                                                Cancel
-                                            </Button>
-                                            <Button
-                                                onClick={handleSave}
-                                                disabled={loading}
-                                            >
-                                                {loading ? 'Saving...' : 'Save'}
-                                            </Button>
-                                        </>
-                                    ): (
-                                        <Button
-                                            onClick={() => setIsEditing(true)}
-                                        >
-                                            Edit
-                                        </Button>
-                                    )}
-                                </div>
-                                </div>
-                                {renderContent()}
-                            </CardContent>
-                        </Card>
-                    </div>
-                </div>
+              </div>
             </div>
-        </div>
-    </>
-  )
-}
 
-export default ProfilePage
+            {/* ─── Main Grid ───────────────────────────── */}
+            <div className='grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6'>
+
+              {/* ── Sidebar Nav ─────────────────────── */}
+              <div className='space-y-1.5'>
+                <p className='text-[10px] font-bold uppercase tracking-widest text-slate-400 px-4 mb-3'>Profile Sections</p>
+                {sidebarItems.map((item) => {
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveSection(item.id)}
+                      className={`nav-item w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-left text-sm font-semibold transition-all duration-200 ${
+                        isActive
+                          ? 'nav-active bg-sky-500 text-white shadow-md shadow-sky-200'
+                          : 'text-slate-600 bg-white border border-slate-100'
+                      }`}
+                    >
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${isActive ? 'bg-white/20' : 'bg-slate-100'}`}>
+                        <item.icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                      </div>
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── Content Panel ───────────────────── */}
+              <div className='bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden'>
+                <div className='px-8 py-6 border-b border-slate-100 flex items-center justify-between'>
+                  <div>
+                    <p className='text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-0.5'>
+                      {isDoctor ? 'Doctor' : 'Patient'} Profile
+                    </p>
+                    <h2 className='uc-serif text-xl font-bold text-slate-900'>{currentSectionLabel}</h2>
+                  </div>
+                  {isEditing && (
+                    <span className='flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-xl'>
+                      <div className='w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse' />
+                      Editing Mode
+                    </span>
+                  )}
+                </div>
+                <div key={activeSection} className='section-animate px-8 py-8'>
+                  {renderContent()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default ProfilePage;

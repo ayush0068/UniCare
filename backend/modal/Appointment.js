@@ -14,57 +14,66 @@ const appointmentSchema = new mongoose.Schema({
   date: { type: Date, required: true },
   slotStartIso: { type: String, required: true },
   slotEndIso: { type: String, required: true },
-
-
   consultationType: {
-    type:String,
+    type: String,
     enum: ['Video Consultation', 'Voice Call'],
-    default:'Video Consultation'
+    default: 'Video Consultation'
   },
-  status:{
-        type:String,
-    enum: ['Scheduled', 'Completed','Cancelled','In Progress'],
-    default:'Scheduled'
+  status: {
+    type: String,
+    enum: ['Scheduled', 'Completed', 'Cancelled', 'In Progress'],
+    default: 'Scheduled'
   },
-  symptoms:{type:String,default:''},
-  zegoRoomId:{type:String,default:''},
-  prescription:{type:String,default:''},
-  reminder60Sent: { type: Boolean, default: false }, //reminder
-  reminder30Sent: { type: Boolean, default: false }, //reminder
-  notes:{type:String,default:''},
+  symptoms: { type: String, default: '' },
+  zegoRoomId: { type: String, default: '' },
+  prescription: { type: String, default: '' },
+  reminder60Sent: { type: Boolean, default: false },
+  reminder30Sent: { type: Boolean, default: false },
+  notes: { type: String, default: '' },
 
-  //Payment fields
-  consultationFees:{type:Number,required: true },
-  platformFees:{type:Number,required: true},
-    totalAmount:{type:Number,required: true},
-    paymentStatus: {
-             type:String,
-    enum: ['Pending','Paid','refunded'],
-    default:'Pending'
-    },
+  // ── Parchi (OPD slip) ──
+  parchiId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Parchi',
+    default: null,
+  },
+  visitNumber: {
+    type: Number,
+    default: 1,
+  },
 
-payoutStatus: {
-    type:String,
-    enum: ['Pending','Paid','Cancelled'],
-    default:'Pending'
-    },
+  // ── AI Pre-consultation Report ──
+  aiReportId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'AIReport',
+    default: null,
+  },
 
-    payoutDate:{type:Date},
-    paymentMethod: {type:String,default:'Online'},
+  // Payment fields
+  consultationFees: { type: Number, required: true },
+  platformFees: { type: Number, required: true },
+  totalAmount: { type: Number, required: true },
+  paymentStatus: {
+    type: String,
+    enum: ['Pending', 'Paid', 'refunded'],
+    default: 'Pending'
+  },
+  payoutStatus: {
+    type: String,
+    enum: ['Pending', 'Paid', 'Cancelled'],
+    default: 'Pending'
+  },
+  payoutDate: { type: Date },
+  paymentMethod: { type: String, default: 'Online' },
 
+  // RazorPay fields
+  razorpayOrderId: { type: String },
+  razorpayPaymentId: { type: String },
+  razorpaySignature: { type: String },
+  paymentDate: { type: Date },
 
-    //razorPay payment field
-    razorpayOrderId: {type:String},
-    razorpayPaymentId: {type:String},
-    razorpaySignature: {type:String},
-    paymentDate:{type:Date}
+}, { timestamps: true });
 
+appointmentSchema.index({ doctorId: 1, date: 1, slotStartIso: 1 }, { unique: true });
 
-},{timestamps:true});
-
-
-//1 means accending order
-//unique: true means uniquness is enfoced across that combination of filds
-appointmentSchema.index({doctorId:1,date:1,slotStartIso:1},{unique:true})
-
-module.exports = mongoose.model('Appointment',appointmentSchema)
+module.exports = mongoose.model('Appointment', appointmentSchema);

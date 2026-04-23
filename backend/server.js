@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('./modal/Parchi');
 const express = require('express')
 const mongoose = require('mongoose')
 const helmet = require('helmet')
@@ -9,6 +10,7 @@ const response = require('./middleware/response');
 require('./config/passport'); // Passport configuration
 const passportLib = require('passport');
 const { startReminderScheduler } = require('./utils/reminderScheduler');
+const aiAssistantRoutes = require('./routes/aiAssistant');
 
 
 
@@ -54,6 +56,8 @@ app.use('/api/doctor', require('./routes/doctor'));
 app.use('/api/patient', require('./routes/patient'));
 app.use('/api/appointment', require('./routes/appointment'));
 app.use('/api/payment', require('./routes/payment'))
+
+app.use('/api/ai', aiAssistantRoutes);
 
 
 app.get('/health', (req, res) => res.ok({ time: new Date().toISOString() }, 'OK')

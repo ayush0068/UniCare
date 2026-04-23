@@ -1,5 +1,7 @@
 const express = require("express");
 const Appointment = require("../modal/Appointment");
+const Doctor = require("../modal/Doctor");
+const Parchi = require("../modal/Parchi");
 const { authenticate, requireRole } = require("../middleware/auth");
 const { query, body } = require("express-validator");
 const validate = require("../middleware/validate");
@@ -9,6 +11,20 @@ const { generatePrescriptionPdf } = require('../utils/prescriptionPdf');
 
 const router = express.Router();
 
+// ── Helper: Determine discount based on parchi visitCount ──
+// Visit 1 → Full price (no parchi yet)
+// Visit 2 → FREE  (visitCount === 1)
+// Visit 3 → FREE  (visitCount === 2)
+// Visit 4 → HALF  (visitCount === 3)
+// Visit 5+ → FULL (visitCount >= 4)
+const getDiscountType = (parchi) => {
+  if (!parchi) return 'none';
+  const vc = parchi.visitCount;
+  if (vc <= 2) return 'free';
+  if (vc === 3) return 'half';
+  return 'none';
+};
+
 //Doctor's appointment
 router.get(
   "/doctor",
@@ -16,10 +32,7 @@ router.get(
   requireRole("doctor"),
   [
     query("status").optional().isArray().withMessage("Status can be an array"),
-    query("status.*")
-      .optional()
-      .isString()
-      .withMessage("Each status must be an string"),
+    query("status.*").optional().isString().withMessage("Each status must be an string"),
   ],
   validate,
   async (req, res) => {
@@ -42,17 +55,14 @@ router.get(
   }
 );
 
-//patient appointment
+//Patient appointment
 router.get(
   "/patient",
   authenticate,
   requireRole("patient"),
   [
     query("status").optional().isArray().withMessage("Status can be an array"),
-    query("status.*")
-      .optional()
-      .isString()
-      .withMessage("Each status must be an string"),
+    query("status.*").optional().isString().withMessage("Each status must be an string"),
   ],
   validate,
   async (req, res) => {
@@ -75,7 +85,7 @@ router.get(
   }
 );
 
-//Get booked slot for doctor on specific date
+//Get booked slots for doctor on specific date
 router.get("/booked-slots/:doctorId/:date", async (req, res) => {
   try {
     const { doctorId, date } = req.params;
@@ -95,6 +105,43 @@ router.get("/booked-slots/:doctorId/:date", async (req, res) => {
   }
 });
 
+// ── Check discount — slotDate ke against parchi check karo ──
+router.get("/check-discount/:doctorId", authenticate, requireRole("patient"), async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const patientId = req.auth.id;
+    const { slotDate } = req.query;
+
+    // Agar slotDate query mein hai to us date ke against check karo
+    // Warna aaj ki date se check karo
+    const checkDate = slotDate ? new Date(slotDate) : new Date();
+
+    // KEY FIX: parchi ki expiry slotDate se badi honi chahiye
+    // Agar 30 April ka slot hai aur parchi 23 April tak hai → null milega → full price
+    const parchi = await Parchi.findOne({
+      doctorId,
+      patientId,
+      isActive: true,
+      expiryDate: { $gt: checkDate },
+    });
+
+    const discountType = getDiscountType(parchi);
+
+    res.ok(
+      {
+        discountType,
+        parchiNumber: parchi?.parchiNumber || null,
+        visitCount: parchi?.visitCount || 0,
+        expiryDate: parchi?.expiryDate || null,
+      },
+      "Discount info fetched"
+    );
+  } catch (error) {
+    res.serverError("Failed to check discount", [error.message]);
+  }
+});
+
+// ── Book appointment ──
 router.post("/book", authenticate, requireRole("patient"), [
   body("doctorId").isMongoId().withMessage("valid doctor ID is required"),
   body("slotStartIso").isISO8601().withMessage("valid start time is required"),
@@ -102,10 +149,7 @@ router.post("/book", authenticate, requireRole("patient"), [
   body("consultationType")
     .isIn(["Video Consultation", "Voice Call"])
     .withMessage("valid consultation type required"),
-  body("symptoms")
-    .isString()
-    .trim()
-    .withMessage("symptoms description is required (min 10 char)"),
+  body("symptoms").isString().trim().withMessage("symptoms description is required (min 10 char)"),
   body("consultationFees").isNumeric().withMessage("consultationFees is required"),
   body("platformFees").isNumeric().withMessage("platformFees is required"),
   body("totalAmount").isNumeric().withMessage("totalAmount is required"),
@@ -131,11 +175,73 @@ router.post("/book", authenticate, requireRole("patient"), [
         return res.forbidden("This time slot is already booked");
       }
 
+      // ── Parchi + Discount logic ──
+      const patientId = req.auth.id;
+      const slotDateObj = new Date(slotStartIso);
+
+      // KEY FIX: slot ki date ke against parchi check karo, aaj ki date ke against nahi
+      let parchi = await Parchi.findOne({
+        doctorId,
+        patientId,
+        isActive: true,
+        expiryDate: { $gt: slotDateObj },
+      });
+
+      const discountType = getDiscountType(parchi);
+      const doctor = await Doctor.findById(doctorId).select('fees');
+      const baseFee = doctor?.fees || consultationFees;
+
+      let finalConsultationFees, finalPlatformFees, finalTotalAmount, visitNumber;
+
+      if (!parchi) {
+        // ── First visit ya 10 din baad — full price, nayi parchi banao ──
+        finalConsultationFees = consultationFees;
+        finalPlatformFees = platformFees;
+        finalTotalAmount = totalAmount;
+        visitNumber = 1;
+
+        // Parchi ki expiry slot date se 10 din baad
+        const expiry = new Date(slotDateObj);
+        expiry.setDate(expiry.getDate() + 10);
+
+        parchi = new Parchi({
+          doctorId,
+          patientId,
+          firstVisitDate: slotDateObj,
+          expiryDate: expiry,
+          visitCount: 1,
+          isActive: true,
+        });
+        await parchi.save();
+
+      } else {
+        // ── Follow-up visit — same parchi, discount apply karo ──
+        visitNumber = parchi.visitCount + 1;
+
+        if (discountType === 'free') {
+          finalConsultationFees = 0;
+          finalPlatformFees = 0;
+          finalTotalAmount = 0;
+        } else if (discountType === 'half') {
+          finalConsultationFees = Math.ceil(baseFee / 2);
+          finalPlatformFees = Math.round(finalConsultationFees * 0.1);
+          finalTotalAmount = finalConsultationFees + finalPlatformFees;
+        } else {
+          finalConsultationFees = consultationFees;
+          finalPlatformFees = platformFees;
+          finalTotalAmount = totalAmount;
+        }
+
+        parchi.visitCount += 1;
+        await parchi.save();
+      }
+      // ── End parchi logic ──
+
       const zegoRoomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       const appointment = new Appointment({
         doctorId,
-        patientId: req.auth.id,
+        patientId,
         date: new Date(date),
         slotStartIso: new Date(slotStartIso),
         slotEndIso: new Date(slotEndIso),
@@ -143,11 +249,13 @@ router.post("/book", authenticate, requireRole("patient"), [
         symptoms,
         zegoRoomId,
         status: "Scheduled",
-        consultationFees,
-        platformFees,
-        totalAmount,
+        consultationFees: finalConsultationFees,
+        platformFees: finalPlatformFees,
+        totalAmount: finalTotalAmount,
         paymentStatus: "Pending",
         payoutStatus: "Pending",
+        parchiId: parchi._id,
+        visitNumber,
       });
 
       await appointment.save();
@@ -155,11 +263,21 @@ router.post("/book", authenticate, requireRole("patient"), [
       await appointment.populate("doctorId", "name fees phone specialization hospitalInfo profileImage");
       await appointment.populate("patientId", "name email");
 
-      res.created(appointment, "Appointment booked successfully");
+      res.created(
+        { ...appointment.toObject(), parchiNumber: parchi.parchiNumber, parchiExpiry: parchi.expiryDate },
+        "Appointment booked successfully"
+      );
 
-      // ✅ FIX: lowercase `appointment` (instance), aur try ke andar
-      const { subject, html } = bookingConfirmationTemplate(appointment);
-      sendMail({ to: appointment.patientId.email, subject, html }).catch(console.error);
+      // Confirmation email
+      setImmediate(async () => {
+        try {
+          const { subject, html } = bookingConfirmationTemplate(appointment);
+          await sendMail({ to: appointment.patientId.email, subject, html });
+          console.log('Confirmation email sent to:', appointment.patientId.email);
+        } catch (emailErr) {
+          console.error('Confirmation email failed:', emailErr.message);
+        }
+      });
 
     } catch (error) {
       console.error("Book appointment error", error);
@@ -190,7 +308,6 @@ router.get("/join/:id", authenticate, async (req, res) => {
 router.put("/end/:id", authenticate, async (req, res) => {
   try {
     const { prescription, notes } = req.body;
-
     const appointment = await Appointment.findByIdAndUpdate(
       req.params.id,
       { status: "Completed", prescription, notes, updatedAt: new Date() },
@@ -203,11 +320,12 @@ router.put("/end/:id", authenticate, async (req, res) => {
 
     res.ok(appointment, "Consultation completed successfully");
 
-    // ✅ Prescription email with PDF attachment
+    // Prescription email with PDF
     try {
       const fullAppt = await Appointment.findById(req.params.id)
         .populate("patientId", "name email phone dob age gender bloodGroup")
-        .populate("doctorId", "name specialization phone hospitalInfo");
+        .populate("doctorId", "name specialization phone hospitalInfo qualification")
+        .populate("parchiId");
 
       const pdfBuffer = await generatePrescriptionPdf(fullAppt);
 
@@ -242,7 +360,7 @@ router.put("/end/:id", authenticate, async (req, res) => {
   }
 });
 
-//update appointment status by doctor
+//Update appointment status by doctor
 router.put(
   "/status/:id",
   authenticate,
@@ -273,7 +391,8 @@ router.get("/:id", authenticate, async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate("patientId", "name email phone dob age profileImage")
-      .populate("doctorId", "name fees phone specialization hospitalInfo profileImage");
+      .populate("doctorId", "name fees phone specialization hospitalInfo profileImage")
+      .populate("parchiId");
     if (!appointment) {
       return res.notFound("Appointment not found");
     }

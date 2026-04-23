@@ -5,7 +5,6 @@ const { body } = require("express-validator");
 const validate = require("../middleware/validate");
 const Appointment = require("../modal/Appointment");
 const crypto = require("crypto");
-
 const router = express.Router();
 
 const razorPay = new Razorpay({
@@ -20,33 +19,46 @@ router.post(
   [
     body("appointmentId")
       .isMongoId()
-      .withMessage("valid appoitment ID is required"),
+      .withMessage("valid appointment ID is required"),
   ],
   validate,
   async (req, res) => {
     try {
       const { appointmentId } = req.body;
 
-      //find appointment
       const appointment = await Appointment.findById(appointmentId)
         .populate("doctorId", "name specialization")
         .populate("patientId", "name email phone");
 
       if (!appointment) {
-        return res.notFound("Appointemnt not found");
+        return res.notFound("Appointment not found");
       }
+
       if (appointment.patientId._id.toString() !== req.auth.id) {
-        return res.forbidden("Access denined");
+        return res.forbidden("Access denied");
       }
 
       if (appointment.paymentStatus === "Paid") {
-        return res.badRequest("Payment alredy complted");
+        return res.badRequest("Payment already completed");
       }
+
+      // ── Free appointment — loyalty discount applied, skip Razorpay ──
+      if (appointment.totalAmount === 0) {
+        appointment.paymentStatus = 'Paid';
+        appointment.paymentMethod = 'Free (Loyalty Discount)';
+        appointment.paymentDate = new Date();
+        await appointment.save();
+        return res.ok(
+          { free: true, appointmentId: appointment._id },
+          "Free consultation confirmed successfully"
+        );
+      }
+      // ── End free appointment ──
 
       const order = await razorPay.orders.create({
         amount: appointment.totalAmount * 100,
         currency: "INR",
-        receipt: `appointement_${appointmentId}`,
+        receipt: `appointment_${appointmentId}`,
         notes: {
           appointmentId: appointmentId,
           doctorName: appointment.doctorId.name,
@@ -68,7 +80,7 @@ router.post(
         "Payment order created successfully"
       );
     } catch (error) {
-      res.serverError("Failed to create paymnet order ", [error.message]);
+      res.serverError("Failed to create payment order", [error.message]);
     }
   }
 );
@@ -80,7 +92,7 @@ router.post(
   [
     body("appointmentId")
       .isMongoId()
-      .withMessage("valid appoitment ID is required"),
+      .withMessage("valid appointment ID is required"),
     body("razorpay_order_id")
       .isString()
       .withMessage("Razorpay order Id required"),
@@ -101,19 +113,19 @@ router.post(
         razorpay_signature,
       } = req.body;
 
-      //find appointment
       const appointment = await Appointment.findById(appointmentId)
         .populate("doctorId", "name specialization")
         .populate("patientId", "name email phone");
 
       if (!appointment) {
-        return res.notFound("Appointemnt not found");
-      }
-      if (appointment.patientId._id.toString() !== req.auth.id) {
-        return res.forbidden("Access denined");
+        return res.notFound("Appointment not found");
       }
 
-      //verify paymnet signature
+      if (appointment.patientId._id.toString() !== req.auth.id) {
+        return res.forbidden("Access denied");
+      }
+
+      // verify payment signature
       const body = razorpay_order_id + "|" + razorpay_payment_id;
       const expectedSignature = crypto
         .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
@@ -121,8 +133,9 @@ router.post(
         .digest("hex");
 
       const isAuthentic = expectedSignature === razorpay_signature;
+
       if (!isAuthentic) {
-        return res.badRequest("paymnet varification failed");
+        return res.badRequest("Payment verification failed");
       }
 
       appointment.paymentStatus = "Paid";
@@ -131,7 +144,6 @@ router.post(
       appointment.razorpayOrderId = razorpay_order_id;
       appointment.razorpaySignature = razorpay_signature;
       appointment.paymentDate = new Date();
-
       await appointment.save();
 
       await appointment.populate(
@@ -142,13 +154,12 @@ router.post(
 
       res.ok(
         appointment,
-        "Payment verified and appointment confirmed succesfully"
+        "Payment verified and appointment confirmed successfully"
       );
     } catch (error) {
-      res.serverError("Failed to verify paymnet ", [error.message]);
+      res.serverError("Failed to verify payment", [error.message]);
     }
   }
 );
 
-
- module.exports = router;
+module.exports = router;

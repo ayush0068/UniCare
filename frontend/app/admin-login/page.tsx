@@ -28,24 +28,14 @@ export default function AdminLoginPage() {
 
     try {
       const { data } = await adminLogin(email, pass);
-
-      console.log("LOGIN RESPONSE:", data); // 🔍 DEBUG
-
-      // 🔥 HANDLE DIFFERENT RESPONSE STRUCTURES
-      const token = data?.token || data?.data?.token;
-      const admin = data?.admin || data?.data?.admin;
+      const { token, admin } = data;
 
       if (!token) {
         throw new Error('Token not received from server');
       }
 
-      // ✅ 1. localStorage में save करो (MOST IMPORTANT)
       localStorage.setItem('adminToken', token);
-
-      // ✅ 2. Zustand store में save करो
       setAuth(token, admin);
-
-      // ✅ 3. redirect
       router.replace('/admin');
 
     } catch (err: any) {

@@ -48,7 +48,12 @@ const STEPS = [
   { number: 1, title: 'Professional Info', icon: Stethoscope, desc: 'Your medical credentials' },
   { number: 2, title: 'Hospital / Clinic', icon: MapPin, desc: 'Where you practice' },
   { number: 3, title: 'Availability', icon: Clock, desc: 'Your working schedule' },
-]
+];
+
+const DAYS = [
+  { day: 'Sun', v: 0 }, { day: 'Mon', v: 1 }, { day: 'Tue', v: 2 },
+  { day: 'Wed', v: 3 }, { day: 'Thu', v: 4 }, { day: 'Fri', v: 5 }, { day: 'Sat', v: 6 }
+];
 
 const DoctorOnboardingForm = () => {
   const [currentStep, setCurrentStep] = useState(1)

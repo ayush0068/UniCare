@@ -28,7 +28,7 @@ const FieldWrapper = ({ label, children }: FieldWrapperProps) => (
 
 interface UCInputProps {
   value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   type?: string;
   placeholder?: string;
   readOnly?: boolean;

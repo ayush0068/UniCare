@@ -29,7 +29,7 @@ const ConsultationStep = ({
 
   const getConsultationPrice = (selectedType = consultationType) => {
     const typeAddon = consultationTypes.find(ct => ct.type === selectedType)?.price || 0;
-    const base = Math.max(0, doctorFees + typeAddon);
+    const base = Math.max(0, (doctorFees ?? 0) + typeAddon);
     if (isGuest) return base; // guests never get discounts
     if (discountType === 'free') return 0;
     if (discountType === 'half') return Math.ceil(base / 2);
@@ -38,7 +38,7 @@ const ConsultationStep = ({
 
   const getOriginalPrice = (selectedType = consultationType) => {
     const typeAddon = consultationTypes.find(ct => ct.type === selectedType)?.price || 0;
-    return Math.max(0, doctorFees + typeAddon);
+    return Math.max(0, (doctorFees ?? 0) + typeAddon);
   };
 
   // Guests never see loyalty discount UI

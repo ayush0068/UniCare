@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { convertTo24Hour, minutesToTime, toLocalYMD } from "@/lib/dateUtils";
 import { useAppointmentStore } from "@/store/appointmentStore";
 import { useDoctorStore } from "@/store/doctorStore";
+import { userAuthStore } from "@/store/authStore";
 import { ArrowLeft, Check } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -15,6 +16,8 @@ import ConsultationStep from "@/components/BookingSteps/ConsultationStep";
 import PaymentStep from "@/components/BookingSteps/PaymentStep";
 import { httpService } from "@/service/httpService";
 
+const GUEST_SURCHARGE = 30;
+
 const page = () => {
   const params = useParams();
   const router = useRouter();
@@ -23,6 +26,9 @@ const page = () => {
   const { currentDoctor, fetchDoctorById } = useDoctorStore();
   const { bookAppointment, loading, fetchBookedSlots, bookedSlots } =
     useAppointmentStore();
+
+  const { user } = userAuthStore();
+  const isGuest = user?.isGuest ?? false;
 
   // state
   const [currentStep, setCurrentStep] = useState(1);
@@ -36,7 +42,7 @@ const page = () => {
   const [createdAppointmentId, setCreatedAppointmentId] = useState<string | null>(null);
   const [patientName, setPatientName] = useState<string>('');
 
-  // ── Discount state — parent mein rakho taaki PaymentStep ko sahi price mile ──
+  // ── Discount state — guests always get 'none', registered patients get checked ──
   const [discountType, setDiscountType] = useState<'none' | 'free' | 'half'>('none');
 
   useEffect(() => {
@@ -45,13 +51,11 @@ const page = () => {
     }
   }, [doctorId, fetchDoctorById]);
 
-  // ── KEY FIX: selectedDate change hone pe bhi discount check karo ──
-  // Slot date backend ko bhejo taaki parchi expiry us date ke against check ho
+  // ── Skip discount check entirely for guest users ──
   useEffect(() => {
     const checkDiscount = async () => {
-      if (!doctorId) return;
+      if (!doctorId || isGuest) return;
       try {
-        // Agar date select hai to us date ka param bhejo, warna koi param nahi
         const dateParam = selectedDate ? `?slotDate=${toLocalYMD(selectedDate)}` : '';
         const res = await httpService.getWithAuth(
           `/appointment/check-discount/${doctorId}${dateParam}`
@@ -62,7 +66,7 @@ const page = () => {
       }
     };
     checkDiscount();
-  }, [doctorId, selectedDate]); // ← selectedDate bhi dependency mein hai
+  }, [doctorId, selectedDate, isGuest]);
 
   useEffect(() => {
     if (selectedDate && doctorId) {
@@ -112,12 +116,13 @@ const page = () => {
     return hours * 60 + minutes;
   };
 
-  // ── getConsultationPrice — discountType consider karta hai ──
+  // ── getConsultationPrice — guest users get no discount ──
   const getConsultationPrice = (): number => {
     const basePrice = currentDoctor?.fees || 0;
     const typeAddon = consultationType === "Voice Call" ? -100 : 0;
     const base = Math.max(0, basePrice + typeAddon);
 
+    if (isGuest) return base; // no discount for guests
     if (discountType === 'free') return 0;
     if (discountType === 'half') return Math.ceil(base / 2);
     return base;
@@ -139,7 +144,8 @@ const page = () => {
 
       const consultationFees = getConsultationPrice();
       const platformFees = consultationFees === 0 ? 0 : Math.round(consultationFees * 0.1);
-      const totalAmount = consultationFees + platformFees;
+      // ── Guest: add ₹30 surcharge to totalAmount sent to backend ──
+      const totalAmount = consultationFees + platformFees + (isGuest ? GUEST_SURCHARGE : 0);
 
       const appointment = await bookAppointment({
         doctorId: doctorId,
@@ -286,6 +292,7 @@ const page = () => {
                         doctorFees={currentDoctor?.fees}
                         doctorId={doctorId}
                         discountType={discountType}
+                        isGuest={isGuest}
                         onBack={() => setCurrentStep(1)}
                         onContinue={() => setCurrentStep(3)}
                       />
@@ -313,6 +320,8 @@ const page = () => {
                         loading={loading}
                         appointmentId={createdAppointmentId || undefined}
                         patientName={patientName || undefined}
+                        isGuest={isGuest}
+                        guestSurcharge={isGuest ? GUEST_SURCHARGE : 0}
                       />
                     </motion.div>
                   )}

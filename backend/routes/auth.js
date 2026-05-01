@@ -149,4 +149,26 @@ router.post('/doctor/register',
  router.get('/failure', (req,res) => res.badRequest('Google authentication Failed'))
 
 
+ router.post('/guest/login', async (req, res) => {
+  try {
+    const guestId = require('crypto').randomBytes(8).toString('hex');
+    const guest = await Patient.create({
+      name: 'Guest User',
+      email: `guest_${guestId}@unicare.guest`,
+      isGuest: true,
+      guestAppointmentCount: 0,
+      isVerified: false,
+      isActive: true,
+    });
+    const token = signToken(guest._id, 'patient');
+    res.created(
+      { token, user: { id: guest._id, type: 'patient', isGuest: true, name: 'Guest User' } },
+      'Guest session started'
+    );
+  } catch (error) {
+    res.serverError('Failed to start guest session', [error.message]);
+  }
+});
+
+
  module.exports = router;

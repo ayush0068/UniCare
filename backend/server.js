@@ -59,6 +59,8 @@ app.use('/api/payment', require('./routes/payment'))
 
 app.use('/api/ai', aiAssistantRoutes);
 
+app.use('/api/admin', require('./routes/admin'));
+
 
 app.get('/health', (req, res) => res.ok({ time: new Date().toISOString() }, 'OK')
 );

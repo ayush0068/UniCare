@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>UniCare Admin Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    /* ── Reset & Base ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary:       #2563eb;
+      --primary-light: #eff6ff;
+      --primary-dark:  #1d4ed8;
+      --success:       #16a34a;
+      --success-light: #f0fdf4;
+      --warning:       #d97706;
+      --warning-light: #fffbeb;
+      --danger:        #dc2626;
+      --danger-light:  #fef2f2;
+      --purple:        #7c3aed;
+      --purple-light:  #f5f3ff;
+      --teal:          #0d9488;
+      --teal-light:    #f0fdfa;
+      --bg:            #f8fafc;
+      --surface:       #ffffff;
+      --border:        #e2e8f0;
+      --text:          #0f172a;
+      --text-2:        #475569;
+      --text-3:        #94a3b8;
+      --sidebar-w:     260px;
+      --header-h:      64px;
+      --radius:        12px;
+      --shadow:        0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-lg:     0 10px 25px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+    }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Login Screen ──────────────────────────────────────── */
+    #login-screen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #eff6ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+    }
+    .login-card {
+      background: var(--surface); border-radius: 20px; padding: 48px 40px;
+      width: 420px; box-shadow: var(--shadow-lg); border: 1px solid var(--border);
+    }
+    .login-logo { display: flex; align-items: center; gap: 12px; margin-bottom: 32px; }
+    .login-logo .icon { width: 48px; height: 48px; background: var(--primary); border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 22px; }
+    .login-logo h1 { font-size: 22px; font-weight: 700; color: var(--text); }
+    .login-logo span { font-size: 13px; color: var(--text-2); display: block; }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .form-group input {
+      width: 100%; padding: 11px 14px; border: 1.5px solid var(--border); border-radius: 9px;
+      font-size: 14px; color: var(--text); background: var(--bg); transition: border .2s;
+    }
+    .form-group input:focus { outline: none; border-color: var(--primary); background: #fff; }
+    .btn-primary {
+      width: 100%; padding: 12px; background: var(--primary); color: #fff; border: none;
+      border-radius: 9px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .2s;
+    }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+    .error-msg { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; }
+
+    /* ── App Shell ─────────────────────────────────────────── */
+    #app { display: none; min-height: 100vh; }
+    #app.visible { display: flex; }
+
+    /* ── Sidebar ───────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w); background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh;
+      z-index: 100; overflow-y: auto;
+    }
+    .sidebar-logo {
+      padding: 20px 20px 16px; display: flex; align-items: center; gap: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-logo .logo-icon { width: 36px; height: 36px; background: var(--primary); border-radius: 9px;
+      display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; }
+    .sidebar-logo span { font-size: 17px; font-weight: 700; color: var(--text); }
+    .sidebar-logo small { font-size: 10.5px; color: var(--text-3); display: block; font-weight: 500; }
+
+    .sidebar-admin {
+      padding: 14px 16px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar-admin .avatar {
+      width: 38px; height: 38px; background: var(--primary-light); border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; font-weight: 700;
+      color: var(--primary); font-size: 15px; flex-shrink: 0;
+    }
+    .sidebar-admin .info { overflow: hidden; }
+    .sidebar-admin .info strong { font-size: 13px; color: var(--text); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sidebar-admin .info small { font-size: 11px; color: var(--text-3); }
+    .sidebar-admin .badge { margin-left: auto; padding: 2px 7px; background: var(--primary); color: #fff; border-radius: 20px; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+    .nav-section { padding: 10px 12px 4px; font-size: 10.5px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: .06em; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin: 1px 6px;
+      border-radius: 8px; cursor: pointer; font-size: 13.5px; color: var(--text-2);
+      font-weight: 500; transition: all .15s; text-decoration: none;
+    }
+    .nav-item:hover { background: var(--bg); color: var(--text); }
+    .nav-item.active { background: var(--primary-light); color: var(--primary); font-weight: 600; }
+    .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+    .nav-item .nav-badge { margin-left: auto; background: var(--danger); color: #fff; border-radius: 20px; font-size: 10px; font-weight: 700; padding: 1px 6px; }
+
+    .sidebar-bottom { margin-top: auto; padding: 12px; border-top: 1px solid var(--border); }
+    .sidebar-bottom .nav-item { color: var(--danger); }
+    .sidebar-bottom .nav-item:hover { background: var(--danger-light); }
+
+    /* ── Main Content ───────────────────────────────────────── */
+    .main { margin-left: var(--sidebar-w); flex: 1; min-height: 100vh; display: flex; flex-direction: column; }
+    .header {
+      height: var(--header-h); background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 24px; position: sticky; top: 0; z-index: 50;
+      gap: 16px;
+    }
+    .header h2 { font-size: 18px; font-weight: 700; color: var(--text); }
+    .header-sub { font-size: 13px; color: var(--text-3); margin-top: 1px; }
+    .header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .header-btn {
+      padding: 7px 14px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--surface);
+      color: var(--text-2); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s;
+    }
+    .header-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .header-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .header-btn.primary:hover { background: var(--primary-dark); }
+
+    .content { flex: 1; padding: 24px; overflow-y: auto; }
+
+    /* ── Sections ───────────────────────────────────────────── */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    /* ── Stats Grid ─────────────────────────────────────────── */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; box-shadow: var(--shadow);
+    }
+    .stat-card .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .stat-card .label { font-size: 12.5px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; }
+    .stat-card .icon-wrap { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .stat-card .value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1; margin-bottom: 6px; }
+    .stat-card .sub { font-size: 12px; color: var(--text-3); }
+    .stat-card .trend { font-size: 11px; font-weight: 600; }
+    .trend.up { color: var(--success); }
+    .trend.down { color: var(--danger); }
+
+    .icon-blue { background: var(--primary-light); color: var(--primary); }
+    .icon-green { background: var(--success-light); color: var(--success); }
+    .icon-orange { background: var(--warning-light); color: var(--warning); }
+    .icon-purple { background: var(--purple-light); color: var(--purple); }
+    .icon-teal { background: var(--teal-light); color: var(--teal); }
+    .icon-red { background: var(--danger-light); color: var(--danger); }
+
+    /* ── Charts Row ─────────────────────────────────────────── */
+    .charts-row { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+    .chart-card h3 { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+
+    /* ── Data Table ─────────────────────────────────────────── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .card-header h3 { font-size: 15px; font-weight: 700; color: var(--text); }
+    .card-header .count-badge { background: var(--primary-light); color: var(--primary); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+
+    .search-box { position: relative; flex: 1; min-width: 200px; max-width: 320px; }
+    .search-box input { width: 100%; padding: 8px 12px 8px 34px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; background: var(--bg); color: var(--text); }
+    .search-box input:focus { outline: none; border-color: var(--primary); }
+    .search-box::before { content: '🔍'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; }
+
+    .filter-select { padding: 8px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: 13px; color: var(--text-2); background: var(--bg); cursor: pointer; }
+    .filter-select:focus { outline: none; border-color: var(--primary); }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th { background: var(--bg); padding: 11px 16px; text-align: left; font-size: 11.5px; font-weight: 700; color: var(--text-2); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; border-bottom: 1px solid var(--border); }
+    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--bg); }
+    tbody td { padding: 12px 16px; font-size: 13.5px; color: var(--text); }
+
+    .user-cell { display: flex; align-items: center; gap: 10px; }
+    .avatar-sm { width: 34px; height: 34px; border-radius: 50%; background: var(--primary-light);
+      display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--primary); font-size: 13px; flex-shrink: 0; overflow: hidden; }
+    .avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+    .user-cell .name { font-weight: 600; color: var(--text); font-size: 13.5px; }
+    .user-cell .email { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+
+    /* ── Badges / Pills ─────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 20px; font-size: 11.5px; font-weight: 600; }
+    .badge-green  { background: var(--success-light); color: var(--success); }
+    .badge-red    { background: var(--danger-light); color: var(--danger); }
+    .badge-orange { background: var(--warning-light); color: var(--warning); }
+    .badge-blue   { background: var(--primary-light); color: var(--primary); }
+    .badge-purple { background: var(--purple-light); color: var(--purple); }
+    .badge-gray   { background: #f1f5f9; color: var(--text-2); }
+
+    /* ── Action Buttons ─────────────────────────────────────── */
+    .actions { display: flex; gap: 6px; align-items: center; }
+    .btn-icon { width: 30px; height: 30px; border: 1.5px solid var(--border); border-radius: 7px;
+      background: var(--surface); cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: all .15s; color: var(--text-2); }
+    .btn-icon:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+    .btn-icon.danger:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
+    .btn-icon.success:hover { border-color: var(--success); color: var(--success); background: var(--success-light); }
+
+    /* ── Pagination ─────────────────────────────────────────── */
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); }
+    .page-info { font-size: 13px; color: var(--text-2); }
+    .page-btns { display: flex; gap: 4px; }
+    .page-btn { padding: 5px 11px; border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface); cursor: pointer; font-size: 13px; color: var(--text-2); transition: all .15s; }
+    .page-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .page-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    /* ── Modal ──────────────────────────────────────────────── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.4); backdrop-filter: blur(4px);
+      z-index: 1000; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border-radius: 16px; width: 100%; max-width: 580px;
+      box-shadow: var(--shadow-lg); max-height: 90vh; overflow-y: auto; }
+    .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h3 { font-size: 17px; font-weight: 700; color: var(--text); }
+    .modal-close { width: 32px; height: 32px; border: none; background: var(--bg); border-radius: 8px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+    .modal-close:hover { background: var(--danger-light); color: var(--danger); }
+    .modal-body { padding: 24px; }
+    .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* ── Form Styles ────────────────────────────────────────── */
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-field { margin-bottom: 16px; }
+    .form-field label { display: block; font-size: 12.5px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
+    .form-field input, .form-field select, .form-field textarea {
+      width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 13.5px; color: var(--text); background: var(--bg); transition: border .2s;
+    }
+    .form-field input:focus, .form-field select:focus, .form-field textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
+
+    .perms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .perm-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 9px; cursor: pointer; transition: all .15s; }
+    .perm-item:hover { border-color: var(--primary); background: var(--primary-light); }
+    .perm-item.checked { border-color: var(--primary); background: var(--primary-light); }
+    .perm-item input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+    .perm-item .perm-label { font-size: 13px; font-weight: 500; color: var(--text); }
+    .perm-item .perm-desc { font-size: 11px; color: var(--text-3); }
+
+    .btn-modal { padding: 9px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all .15s; border: 1.5px solid transparent; }
+    .btn-modal.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-modal.primary:hover { background: var(--primary-dark); }
+    .btn-modal.secondary { background: var(--surface); color: var(--text-2); border-color: var(--border); }
+    .btn-modal.secondary:hover { border-color: var(--text-2); color: var(--text); }
+    .btn-modal.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+    .btn-modal.danger:hover { background: #b91c1c; }
+
+    /* ── Detail Profile Card ────────────────────────────────── */
+    .profile-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); margin-bottom: 20px; }
+    .profile-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+    .profile-avatar { width: 72px; height: 72px; border-radius: 14px; background: var(--primary-light); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 800; color: var(--primary); flex-shrink: 0; overflow: hidden; }
+    .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .profile-name { font-size: 20px; font-weight: 800; color: var(--text); }
+    .profile-meta { font-size: 13px; color: var(--text-2); margin-top: 4px; }
+    .profile-badges { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+    .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .info-item .info-label { font-size: 11.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .info-item .info-value { font-size: 14px; font-weight: 600; color: var(--text); }
+
+    /* ── Tabs ───────────────────────────────────────────────── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+    .tab { padding: 10px 18px; font-size: 13.5px; font-weight: 600; color: var(--text-2); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Empty State ────────────────────────────────────────── */
+    .empty { text-align: center; padding: 48px 24px; color: var(--text-3); }
+    .empty .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty p { font-size: 14px; }
+
+    /* ── Loading ────────────────────────────────────────────── */
+    .loading { text-align: center; padding: 40px; color: var(--text-3); }
+    .spinner { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Toast ──────────────────────────────────────────────── */
+    #toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast-item { padding: 12px 18px; border-radius: 10px; font-size: 13.5px; font-weight: 500; color: #fff; box-shadow: var(--shadow-lg); min-width: 260px; animation: slideIn .25s ease; }
+    .toast-item.success { background: var(--success); }
+    .toast-item.error { background: var(--danger); }
+    .toast-item.info { background: var(--primary); }
+    @keyframes slideIn { from { transform: translateX(80px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* ── Scrollbar ──────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* ── Responsive (mobile hide sidebar) ──────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform .25s; }
+      .main { margin-left: 0; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .charts-row { grid-template-columns: 1fr; }
+    }
+
+    /* ── Misc Helpers ───────────────────────────────────────── */
+    .mt-4 { margin-top: 16px; }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .gap-2 { gap: 8px; }
+    .ml-auto { margin-left: auto; }
+    .text-sm { font-size: 13px; }
+    .font-semibold { font-weight: 600; }
+    .text-muted { color: var(--text-3); }
+
+    /* Verification banner */
+    .verify-banner { background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 10px; margin-bottom: 16px; font-size: 13.5px; color: #92400e; font-weight: 500; }
+
+    /* quick-stats row under big stats */
+    .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+    .mini-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+    .mini-stat .ms-icon { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .mini-stat .ms-val { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1; }
+    .mini-stat .ms-label { font-size: 11.5px; color: var(--text-3); }
+
+    .select-role { padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 7px; font-size: 12.5px; color: var(--text-2); background: var(--bg); cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════ LOGIN ════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="icon">🏥</div>
+      <div>
+        <h1>UniCare Admin</h1>
+        <span>Medical Platform Management</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Email Address</label>
+      <input id="login-email" type="email" placeholder="admin@unicare.com" autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div id="login-error" class="error-msg" style="display:none"></div>
+    <p style="margin-top:20px;font-size:12px;color:var(--text-3);text-align:center">
+      Credentials are configured in <code>.env</code> → <code>SUPER_ADMIN_EMAIL</code> / <code>SUPER_ADMIN_PASS</code>
+    </p>
+  </div>
+</div>
+
+<!-- ════════════════════════════ APP ════════════════════════════ -->
+<div id="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">🏥</div>
+      <div><span>UniCare</span><small>Admin Portal</small></div>
+    </div>
+    <div class="sidebar-admin">
+      <div class="avatar" id="admin-avatar">SA</div>
+      <div class="info">
+        <strong id="admin-name-sidebar">Admin</strong>
+        <small id="admin-role-sidebar">Role</small>
+      </div>
+      <div class="badge" id="admin-role-badge">SA</div>
+    </div>
+
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" data-section="dashboard">
+      <span class="nav-icon">📊</span> Dashboard
+    </div>
+
+    <div class="nav-section">Management</div>
+    <div class="nav-item" data-section="users" data-perm="userManagement">
+      <span class="nav-icon">👥</span> Patients
+    </div>
+    <div class="nav-item" data-section="doctors" data-perm="doctorManagement">
+      <span class="nav-icon">🩺</span> Doctors
+      <span class="nav-badge" id="pending-badge" style="display:none">!</span>
+    </div>
+    <div class="nav-item" data-section="appointments" data-perm="analytics">
+      <span class="nav-icon">📅</span> Appointments
+    </div>
+    <div class="nav-item" data-section="payments" data-perm="paymentManagement">
+      <span class="nav-icon">💳</span> Payments
+    </div>
+
+    <div id="nav-admin-section" style="display:none">
+      <div class="nav-section">Super Admin</div>
+      <div class="nav-item" data-section="admins">
+        <span class="nav-icon">🔐</span> Admin Accounts
+      </div>
+    </div>
+
+    <div class="sidebar-bottom">
+      <div class="nav-item" onclick="logout()">
+        <span class="nav-icon">🚪</span> Sign Out
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <!-- Header -->
+    <header class="header">
+      <div>
+        <h2 id="page-title">Dashboard</h2>
+        <div class="header-sub" id="page-sub">Overview of your platform</div>
+      </div>
+      <div class="header-actions" id="header-actions"></div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ── DASHBOARD ─────────────────────────────────────── -->
+      <div class="section active" id="section-dashboard">
+        <div class="stats-grid" id="stats-grid">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+        <div class="charts-row">
+          <div class="chart-card">
+            <h3>📈 Revenue (Last 6 Months)</h3>
+            <canvas id="revenue-chart" height="90"></canvas>
+          </div>
+          <div class="chart-card">
+            <h3>📋 Appointments by Status</h3>
+            <canvas id="status-chart" height="180"></canvas>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3>Recent Appointments</h3></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Patient</th><th>Doctor</th><th>Date</th><th>Type</th><th>Status</th><th>Amount</th></tr></thead>
+            <tbody id="recent-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <!-- ── USERS ──────────────────────────────────────────── -->
+      <div class="section" id="section-users">
+        <div class="card">
+          <div class="card-header">
+            <h3>All Patients</h3>
+            <span class="count-badge" id="users-count">0</span>
+            <div class="search-box"><input type="text" placeholder="Search name, email, phone…" oninput="debounce(()=>loadUsers(),400)();" id="users-search"/></div>
+            <select class="filter-select" id="users-filter" onchange="loadUsers()">
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Patient</th><th>Phone</th><th>Blood Group</th><th>Age/Gender</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="users-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+          <div class="pagination" id="users-pagination"></div>
+        </div>
+      </div>
+
+      <!-- ── DOCTORS ────────────────────────────────────────── -->
+      <div class="section" id="section-doctors">
+        <div class="mini-stats" id="doctor-mini-stats">
+          <div class="mini-stat"><div class="ms-icon icon-blue">🩺</div><div><div class="ms-val" id="ms-total">-</div><div class="ms-label">Total Doctors</div></div></div>
+          <div class="mini-stat"><div class="ms-icon icon-green">✅</div><div><div class="ms-val" id="ms-verified">-</div><div class="ms-label">Verified</div></div></div>
+          <div class="mini-stat"><div class="ms-icon icon-orange">⏳</div><div><div class="ms-val" id="ms-pending">-</div><div class="ms-label">Pending Verification</div></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3>All Doctors</h3>
+            <span class="count-badge" id="doctors-count">0</span>
+            <div class="search-box"><input type="text" placeholder="Search name, email, city…" oninput="debounce(()=>loadDoctors(),400)();" id="doctors-search"/></div>
+            <select class="filter-select" id="doctors-filter-verified" onchange="loadDoctors()">
+              <option value="">All Verification</option>
+              <option value="true">Verified</option>
+              <option value="false">Unverified</option>
+            </select>
+            <select class="filter-select" id="doctors-filter-active" onchange="loadDoctors()">
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Doctor</th><th>Specialization</th><th>Hospital / City</th><th>Fees</th><th>Experience</th><th>Verified</th><th>Active</th><th>Actions</th></tr></thead>
+            <tbody id="doctors-tbody"><tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+          <div class="pagination" id="doctors-pagination"></div>
+        </div>
+      </div>
+
+      <!-- ── APPOINTMENTS ───────────────────────────────────── -->
+      <div class="section" id="section-appointments">
+        <div class="card">
+          <div class="card-header">
+            <h3>All Appointments</h3>
+            <span class="count-badge" id="appts-count">0</span>
+            <div class="search-box"><input type="text" placeholder="Search patient or doctor…" oninput="debounce(()=>loadAppointments(),400)();" id="appts-search"/></div>
+            <select class="filter-select" id="appts-filter-status" onchange="loadAppointments()">
+              <option value="">All Status</option>
+              <option>Scheduled</option><option>Completed</option>
+              <option>Cancelled</option><option>In Progress</option>
+            </select>
+            <select class="filter-select" id="appts-filter-payment" onchange="loadAppointments()">
+              <option value="">All Payments</option>
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+              <option value="refunded">Refunded</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Patient</th><th>Doctor</th><th>Date & Time</th><th>Type</th><th>Status</th><th>Payment</th><th>Amount</th></tr></thead>
+            <tbody id="appts-tbody"><tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+          <div class="pagination" id="appts-pagination"></div>
+        </div>
+      </div>
+
+      <!-- ── PAYMENTS ───────────────────────────────────────── -->
+      <div class="section" id="section-payments">
+        <div class="stats-grid" id="payment-stats-grid" style="grid-template-columns:repeat(3,1fr)">
+          <div class="loading"><div class="spinner"></div></div>
+        </div>
+        <div class="card mt-4">
+          <div class="card-header">
+            <h3>Transaction History</h3>
+            <span class="count-badge" id="payments-count">0</span>
+            <select class="filter-select" id="payments-filter-status" onchange="loadPayments()">
+              <option value="">All Payments</option>
+              <option value="Paid">Paid</option>
+              <option value="refunded">Refunded</option>
+            </select>
+            <select class="filter-select" id="payments-filter-payout" onchange="loadPayments()">
+              <option value="">All Payouts</option>
+              <option value="Pending">Payout Pending</option>
+              <option value="Paid">Payout Paid</option>
+              <option value="Cancelled">Payout Cancelled</option>
+            </select>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Patient</th><th>Doctor</th><th>Date</th><th>Method</th><th>Consultation Fee</th><th>Platform Fee</th><th>Total</th><th>Payment</th><th>Payout</th></tr></thead>
+            <tbody id="payments-tbody"><tr><td colspan="9" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+          <div class="pagination" id="payments-pagination"></div>
+        </div>
+      </div>
+
+      <!-- ── ADMINS ──────────────────────────────────────────── -->
+      <div class="section" id="section-admins">
+        <div class="card">
+          <div class="card-header">
+            <h3>Admin Accounts</h3>
+            <span class="count-badge" id="admins-count">0</span>
+            <div style="margin-left:auto">
+              <button class="header-btn primary" onclick="openCreateAdminModal()">+ Create Admin</button>
+            </div>
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Admin</th><th>Role</th><th>Permissions</th><th>Last Login</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="admins-tbody"><tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr></tbody>
+          </table></div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ════════════════════════ MODALS ════════════════════════ -->
+
+<!-- Create Admin Modal -->
+<div class="modal-overlay" id="modal-create-admin">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>🔐 Create New Admin</h3>
+      <button class="modal-close" onclick="closeModal('modal-create-admin')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-field"><label>Full Name *</label><input id="ca-name" placeholder="Dr. Admin Name"/></div>
+        <div class="form-field"><label>Email *</label><input id="ca-email" type="email" placeholder="admin@unicare.com"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Password *</label><input id="ca-pass" type="password" placeholder="Min 6 characters"/></div>
+        <div class="form-field"><label>Role</label>
+          <select id="ca-role">
+            <option value="admin">Admin</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-field">
+        <label>Permissions</label>
+        <div class="perms-grid">
+          <label class="perm-item" id="perm-user-wrap">
+            <input type="checkbox" id="perm-user" checked/>
+            <div><div class="perm-label">👥 User Management</div><div class="perm-desc">Manage patients</div></div>
+          </label>
+          <label class="perm-item" id="perm-doc-wrap">
+            <input type="checkbox" id="perm-doc" checked/>
+            <div><div class="perm-label">🩺 Doctor Management</div><div class="perm-desc">Verify & manage doctors</div></div>
+          </label>
+          <label class="perm-item" id="perm-pay-wrap">
+            <input type="checkbox" id="perm-pay" checked/>
+            <div><div class="perm-label">💳 Payment Management</div><div class="perm-desc">View transactions</div></div>
+          </label>
+          <label class="perm-item" id="perm-analytics-wrap">
+            <input type="checkbox" id="perm-analytics" checked/>
+            <div><div class="perm-label">📊 Analytics</div><div class="perm-desc">View reports & stats</div></div>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal secondary" onclick="closeModal('modal-create-admin')">Cancel</button>
+      <button class="btn-modal primary" onclick="createAdmin()">Create Admin</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Permissions Modal -->
+<div class="modal-overlay" id="modal-edit-perms">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✏️ Edit Permissions</h3>
+      <button class="modal-close" onclick="closeModal('modal-edit-perms')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">Admin: <strong id="ep-admin-name"></strong></p>
+      <div class="perms-grid">
+        <label class="perm-item"><input type="checkbox" id="ep-user"/><div><div class="perm-label">👥 User Management</div></div></label>
+        <label class="perm-item"><input type="checkbox" id="ep-doc"/><div><div class="perm-label">🩺 Doctor Management</div></div></label>
+        <label class="perm-item"><input type="checkbox" id="ep-pay"/><div><div class="perm-label">💳 Payment Management</div></div></label>
+        <label class="perm-item"><input type="checkbox" id="ep-analytics"/><div><div class="perm-label">📊 Analytics</div></div></label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal secondary" onclick="closeModal('modal-edit-perms')">Cancel</button>
+      <button class="btn-modal primary" onclick="savePermissions()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <h3 id="confirm-title">Confirm Action</h3>
+      <button class="modal-close" onclick="closeModal('modal-confirm')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-message" style="font-size:14px;color:var(--text-2);line-height:1.6"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal secondary" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn-modal danger" id="confirm-btn" onclick="runConfirmAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CONFIG  — update API_BASE to match your backend URL
+// ══════════════════════════════════════════════════════════════
+const API_BASE = 'http://localhost:8000/api/admin';
+
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+let authToken   = localStorage.getItem('uc_admin_token') || '';
+let currentAdmin = null;
+let currentSection = 'dashboard';
+let confirmAction = null;
+let editingAdminId = null;
+
+// Pagination state
+const pagination = {
+  users: { page: 1, total: 0, limit: 15 },
+  doctors: { page: 1, total: 0, limit: 15 },
+  appointments: { page: 1, total: 0, limit: 15 },
+  payments: { page: 1, total: 0, limit: 15 },
+};
+
+let revenueChart = null, statusChart = null;
+
+// ══════════════════════════════════════════════════════════════
+//  API HELPERS
+// ══════════════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  const res = await fetch(API_BASE + path, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: 'Bearer ' + authToken } : {}),
+    },
+    ...opts,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Request failed');
+  return data;
+}
+
+const get  = (path) => api(path, { method: 'GET' });
+const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+const put  = (path, body = {}) => api(path, { method: 'PUT', body: JSON.stringify(body) });
+const del  = (path) => api(path, { method: 'DELETE' });
+
+// ══════════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast-item ${type}`;
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DEBOUNCE
+// ══════════════════════════════════════════════════════════════
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ══════════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const btn   = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+
+  errEl.style.display = 'none';
+  if (!email || !pass) { errEl.textContent = 'Please enter email and password'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const data = await post('/auth/login', { email, pass });
+    authToken = data.data.token;
+    currentAdmin = data.data.admin;
+    localStorage.setItem('uc_admin_token', authToken);
+    initApp();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Sign In';
+}
+
+document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-email').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+function logout() {
+  authToken = ''; currentAdmin = null;
+  localStorage.removeItem('uc_admin_token');
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════════
+async function initApp() {
+  // Try to get current admin info
+  if (!currentAdmin && authToken) {
+    try {
+      const r = await get('/auth/me');
+      currentAdmin = r.data;
+    } catch (e) { logout(); return; }
+  }
+
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+
+  // Populate sidebar
+  const a = currentAdmin;
+  document.getElementById('admin-name-sidebar').textContent = a.name;
+  document.getElementById('admin-role-sidebar').textContent = a.email;
+  document.getElementById('admin-avatar').textContent = a.name.slice(0,2).toUpperCase();
+  document.getElementById('admin-role-badge').textContent = a.role === 'super_admin' ? 'SA' : 'A';
+
+  // Show super admin nav
+  if (a.role === 'super_admin') {
+    document.getElementById('nav-admin-section').style.display = 'block';
+  }
+
+  // Hide nav items based on permissions (admins only)
+  if (a.role !== 'super_admin') {
+    document.querySelectorAll('[data-perm]').forEach(el => {
+      const perm = el.getAttribute('data-perm');
+      if (!a.permissions[perm]) el.style.display = 'none';
+    });
+  }
+
+  // Nav click handlers
+  document.querySelectorAll('.nav-item[data-section]').forEach(el => {
+    el.addEventListener('click', () => navigateTo(el.getAttribute('data-section')));
+  });
+
+  navigateTo('dashboard');
+}
+
+function navigateTo(section) {
+  currentSection = section;
+
+  // Update nav active
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.querySelector(`.nav-item[data-section="${section}"]`);
+  if (navEl) navEl.classList.add('active');
+
+  // Update sections
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  const secEl = document.getElementById('section-' + section);
+  if (secEl) secEl.classList.add('active');
+
+  // Update header
+  const titles = {
+    dashboard: ['Dashboard', 'Platform overview & key metrics'],
+    users: ['Patient Management', 'View and manage all registered patients'],
+    doctors: ['Doctor Management', 'Verify and manage all doctors'],
+    appointments: ['Appointments', 'All scheduled and completed appointments'],
+    payments: ['Payments & Revenue', 'Transaction history and financial analytics'],
+    admins: ['Admin Accounts', 'Manage admin users and permissions'],
+  };
+  const [title, sub] = titles[section] || ['', ''];
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent = sub;
+
+  // Render header actions
+  const ha = document.getElementById('header-actions');
+  ha.innerHTML = '';
+  if (section === 'admins' && currentAdmin?.role === 'super_admin') {
+    ha.innerHTML = `<button class="header-btn primary" onclick="openCreateAdminModal()">+ Create Admin</button>`;
+  }
+
+  // Load section data
+  const loaders = { dashboard: loadDashboard, users: loadUsers, doctors: loadDoctors, appointments: loadAppointments, payments: loadPayments, admins: loadAdmins };
+  if (loaders[section]) loaders[section]();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════════════════
+async function loadDashboard() {
+  try {
+    const r = await get('/dashboard/stats');
+    const d = r.data;
+    const ov = d.overview;
+
+    // Stats grid
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card">
+        <div class="top"><span class="label">Total Patients</span><div class="icon-wrap icon-blue">👥</div></div>
+        <div class="value">${fmt(ov.totalUsers)}</div>
+        <div class="sub"><span class="trend up">▲ ${fmt(ov.activeUsers)} active</span> · ${fmt(ov.inactiveUsers)} inactive</div>
+      </div>
+      <div class="stat-card">
+        <div class="top"><span class="label">Total Doctors</span><div class="icon-wrap icon-green">🩺</div></div>
+        <div class="value">${fmt(ov.totalDoctors)}</div>
+        <div class="sub"><span class="trend up">▲ ${fmt(ov.verifiedDoctors)} verified</span> · <span class="trend down">⚠ ${fmt(ov.pendingVerification)} pending</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="top"><span class="label">Total Revenue</span><div class="icon-wrap icon-purple">💰</div></div>
+        <div class="value">₹${fmtMoney(ov.totalRevenue)}</div>
+        <div class="sub"><span class="trend up">▲ ₹${fmtMoney(ov.thisMonthRevenue)} this month</span></div>
+      </div>
+      <div class="stat-card">
+        <div class="top"><span class="label">Appointments</span><div class="icon-wrap icon-teal">📅</div></div>
+        <div class="value">${fmt(ov.totalAppointments)}</div>
+        <div class="sub">Today: <strong>${fmt(ov.todayAppointments)}</strong> · This month: ${fmt(ov.monthlyAppointments)}</div>
+      </div>
+    `;
+
+    // Revenue chart
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const revData = d.charts.revenueByMonth || [];
+    if (revenueChart) revenueChart.destroy();
+    const rCtx = document.getElementById('revenue-chart').getContext('2d');
+    revenueChart = new Chart(rCtx, {
+      type: 'bar',
+      data: {
+        labels: revData.map(r => `${months[r._id.month - 1]} ${r._id.year}`),
+        datasets: [{
+          label: 'Revenue (₹)', data: revData.map(r => r.revenue),
+          backgroundColor: '#2563eb22', borderColor: '#2563eb', borderWidth: 2, borderRadius: 6,
+        }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => '₹' + fmtMoney(v) } } } }
+    });
+
+    // Status donut
+    const sData = d.charts.appointmentsByStatus || [];
+    const colorMap = { Scheduled:'#2563eb', Completed:'#16a34a', Cancelled:'#dc2626', 'In Progress':'#d97706' };
+    if (statusChart) statusChart.destroy();
+    const sCtx = document.getElementById('status-chart').getContext('2d');
+    statusChart = new Chart(sCtx, {
+      type: 'doughnut',
+      data: {
+        labels: sData.map(s => s._id),
+        datasets: [{ data: sData.map(s => s.count), backgroundColor: sData.map(s => colorMap[s._id] || '#94a3b8'), borderWidth: 2, borderColor: '#fff' }]
+      },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+
+    // Recent appointments
+    const rows = (d.recentAppointments || []).map(a => `
+      <tr>
+        <td><div class="user-cell">${avatarCell(a.patientId?.profileImage, a.patientId?.name)}<div><div class="name">${esc(a.patientId?.name||'—')}</div><div class="email">${esc(a.patientId?.email||'')}</div></div></div></td>
+        <td><div class="user-cell">${avatarCell(a.doctorId?.profileImage, a.doctorId?.name)}<div><div class="name">${esc(a.doctorId?.name||'—')}</div><div class="email">${esc(a.doctorId?.specialization||'')}</div></div></div></td>
+        <td>${fmtDate(a.date)}</td>
+        <td>${typeBadge(a.consultationType)}</td>
+        <td>${statusBadge(a.status)}</td>
+        <td><strong>₹${fmt(a.totalAmount)}</strong></td>
+      </tr>`).join('') || `<tr><td colspan="6"><div class="empty"><div class="icon">📅</div><p>No recent appointments</p></div></td></tr>`;
+    document.getElementById('recent-tbody').innerHTML = rows;
+
+    // Show pending badge
+    if (ov.pendingVerification > 0) {
+      const pb = document.getElementById('pending-badge');
+      pb.style.display = 'inline-block';
+      pb.textContent = ov.pendingVerification;
+    }
+
+  } catch (err) {
+    toast('Failed to load dashboard: ' + err.message, 'error');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  USERS
+// ══════════════════════════════════════════════════════════════
+async function loadUsers() {
+  const pg = pagination.users;
+  const search = document.getElementById('users-search')?.value || '';
+  const isActive = document.getElementById('users-filter')?.value || '';
+
+  let qs = `?page=${pg.page}&limit=${pg.limit}`;
+  if (search) qs += `&search=${encodeURIComponent(search)}`;
+  if (isActive !== '') qs += `&isActive=${isActive}`;
+
+  document.getElementById('users-tbody').innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try {
+    const r = await get('/users' + qs);
+    pg.total = r.meta.total;
+    document.getElementById('users-count').textContent = r.meta.total;
+
+    const rows = r.data.map(u => `
+      <tr>
+        <td><div class="user-cell">${avatarCell(u.profileImage, u.name)}<div><div class="name">${esc(u.name)}</div><div class="email">${esc(u.email)}</div></div></div></td>
+        <td>${esc(u.phone || '—')}</td>
+        <td>${u.bloodGroup ? `<span class="badge badge-red">${esc(u.bloodGroup)}</span>` : '—'}</td>
+        <td>${u.age ? `${u.age}y, ${cap(u.gender||'—')}` : (cap(u.gender||'—'))}</td>
+        <td>${fmtDate(u.createdAt)}</td>
+        <td>${activeBadge(u.isActive)}</td>
+        <td><div class="actions">
+          <button class="btn-icon ${u.isActive ? 'danger' : 'success'}" title="${u.isActive ? 'Deactivate' : 'Activate'}" onclick="confirmToggle('user','${u._id}','${esc(u.name)}',${u.isActive})">${u.isActive ? '🚫' : '✅'}</button>
+        </div></td>
+      </tr>`).join('') || '<tr><td colspan="7"><div class="empty"><div class="icon">👥</div><p>No patients found</p></div></td></tr>';
+
+    document.getElementById('users-tbody').innerHTML = rows;
+    renderPagination('users', pg, loadUsers);
+  } catch (err) { toast('Failed to load users: ' + err.message, 'error'); }
+}
+
+async function toggleUserActive(id) {
+  try {
+    await put(`/users/${id}/toggle-active`);
+    toast('Patient status updated', 'success');
+    loadUsers();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  DOCTORS
+// ══════════════════════════════════════════════════════════════
+async function loadDoctors() {
+  const pg = pagination.doctors;
+  const search   = document.getElementById('doctors-search')?.value || '';
+  const verified = document.getElementById('doctors-filter-verified')?.value || '';
+  const active   = document.getElementById('doctors-filter-active')?.value || '';
+
+  let qs = `?page=${pg.page}&limit=${pg.limit}`;
+  if (search)   qs += `&search=${encodeURIComponent(search)}`;
+  if (verified !== '') qs += `&isVerified=${verified}`;
+  if (active   !== '') qs += `&isActive=${active}`;
+
+  document.getElementById('doctors-tbody').innerHTML = '<tr><td colspan="8"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try {
+    const r = await get('/doctors' + qs);
+    pg.total = r.meta.total;
+    document.getElementById('doctors-count').textContent = r.meta.total;
+
+    // Update mini stats
+    const total = r.meta.total;
+    document.getElementById('ms-total').textContent = total;
+    // Get verified/pending counts via separate quick calls or use last dashboard data
+    // For simplicity, we show what we have
+    const verifiedCount = r.data.filter(d => d.isVerified).length;
+    document.getElementById('ms-verified').textContent = r.data.filter(d=>d.isVerified).length + (pg.page > 1 ? '+' : '');
+    document.getElementById('ms-pending').textContent = r.data.filter(d=>!d.isVerified).length + (pg.page > 1 ? '+' : '');
+
+    const rows = r.data.map(d => `
+      <tr>
+        <td><div class="user-cell">${avatarCell(d.profileImage, d.name)}<div><div class="name">${esc(d.name)}</div><div class="email">${esc(d.email)}</div></div></div></td>
+        <td>${d.specialization ? `<span class="badge badge-blue">${esc(d.specialization)}</span>` : '—'}</td>
+        <td>${d.hospitalInfo?.name ? `<div style="font-size:13px;font-weight:500">${esc(d.hospitalInfo.name)}</div><div style="font-size:11.5px;color:var(--text-3)">${esc(d.hospitalInfo.city||'')}</div>` : '—'}</td>
+        <td>${d.fees ? `<strong>₹${fmt(d.fees)}</strong>` : '—'}</td>
+        <td>${d.experience ? `${d.experience} yrs` : '—'}</td>
+        <td>
+          ${d.isVerified
+            ? `<span class="badge badge-green">✅ Verified</span>`
+            : `<span class="badge badge-orange">⏳ Pending</span>`}
+        </td>
+        <td>
+          ${d.isActive
+            ? `<span class="badge badge-green">● Active</span>`
+            : `<span class="badge badge-gray">● Inactive</span>`}
+        </td>
+        <td><div class="actions">
+          <button class="btn-icon ${d.isVerified ? 'danger' : 'success'}" title="${d.isVerified ? 'Unverify' : 'Verify'}" onclick="confirmDoctorVerify('${d._id}','${esc(d.name)}',${d.isVerified})">${d.isVerified ? '🔴' : '✅'}</button>
+          <button class="btn-icon ${d.isActive ? 'danger' : 'success'}" title="${d.isActive ? 'Deactivate' : 'Activate'}"
+            onclick="${!d.isVerified && !d.isActive ? `toast('Doctor must be verified first','error')` : `confirmToggle('doctor','${d._id}','${esc(d.name)}',${d.isActive})`}">${d.isActive ? '🚫' : '▶️'}</button>
+        </div></td>
+      </tr>`).join('') || '<tr><td colspan="8"><div class="empty"><div class="icon">🩺</div><p>No doctors found</p></div></td></tr>';
+
+    document.getElementById('doctors-tbody').innerHTML = rows;
+    renderPagination('doctors', pg, loadDoctors);
+  } catch (err) { toast('Failed to load doctors: ' + err.message, 'error'); }
+}
+
+async function toggleDoctorVerify(id) {
+  try {
+    await put(`/doctors/${id}/verify`);
+    toast('Doctor verification status updated', 'success');
+    loadDoctors();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+async function toggleDoctorActive(id) {
+  try {
+    await put(`/doctors/${id}/toggle-active`);
+    toast('Doctor status updated', 'success');
+    loadDoctors();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  APPOINTMENTS
+// ══════════════════════════════════════════════════════════════
+async function loadAppointments() {
+  const pg = pagination.appointments;
+  const search  = document.getElementById('appts-search')?.value || '';
+  const status  = document.getElementById('appts-filter-status')?.value || '';
+  const payment = document.getElementById('appts-filter-payment')?.value || '';
+
+  let qs = `?page=${pg.page}&limit=${pg.limit}`;
+  if (search)  qs += `&search=${encodeURIComponent(search)}`;
+  if (status)  qs += `&status=${encodeURIComponent(status)}`;
+  if (payment) qs += `&paymentStatus=${encodeURIComponent(payment)}`;
+
+  document.getElementById('appts-tbody').innerHTML = '<tr><td colspan="7"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try {
+    const r = await get('/appointments' + qs);
+    pg.total = r.meta.total;
+    document.getElementById('appts-count').textContent = r.meta.total;
+
+    const rows = r.data.map(a => `
+      <tr>
+        <td><div class="user-cell">${avatarCell(a.patientId?.profileImage, a.patientId?.name)}<div><div class="name">${esc(a.patientId?.name||'—')}</div><div class="email">${esc(a.patientId?.email||'')}</div></div></div></td>
+        <td><div class="user-cell">${avatarCell(a.doctorId?.profileImage, a.doctorId?.name)}<div><div class="name">${esc(a.doctorId?.name||'—')}</div><div class="email">${esc(a.doctorId?.specialization||'')}</div></div></div></td>
+        <td><div style="font-size:13px;font-weight:500">${fmtDate(a.date)}</div><div style="font-size:11.5px;color:var(--text-3)">${fmtTime(a.slotStartIso)} – ${fmtTime(a.slotEndIso)}</div></td>
+        <td>${typeBadge(a.consultationType)}</td>
+        <td>${statusBadge(a.status)}</td>
+        <td>${paymentBadge(a.paymentStatus)}</td>
+        <td><strong>₹${fmt(a.totalAmount)}</strong></td>
+      </tr>`).join('') || '<tr><td colspan="7"><div class="empty"><div class="icon">📅</div><p>No appointments found</p></div></td></tr>';
+
+    document.getElementById('appts-tbody').innerHTML = rows;
+    renderPagination('appointments', pg, loadAppointments);
+  } catch (err) { toast('Failed to load appointments: ' + err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  PAYMENTS
+// ══════════════════════════════════════════════════════════════
+async function loadPayments() {
+  const pg = pagination.payments;
+  const payStatus   = document.getElementById('payments-filter-status')?.value || '';
+  const payoutStatus = document.getElementById('payments-filter-payout')?.value || '';
+
+  let qs = `?page=${pg.page}&limit=${pg.limit}`;
+  if (payStatus)  qs += `&paymentStatus=${payStatus}`;
+  if (payoutStatus) qs += `&payoutStatus=${payoutStatus}`;
+
+  document.getElementById('payments-tbody').innerHTML = '<tr><td colspan="9"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try {
+    // Load stats
+    const [statsR, paymentsR] = await Promise.all([
+      get('/payments/stats'),
+      get('/payments' + qs)
+    ]);
+
+    const s = statsR.data;
+    document.getElementById('payment-stats-grid').innerHTML = `
+      <div class="stat-card">
+        <div class="top"><span class="label">Total Revenue</span><div class="icon-wrap icon-purple">💰</div></div>
+        <div class="value">₹${fmtMoney(s.totalRevenue)}</div>
+        <div class="sub">${fmt(s.totalPaid)} paid transactions</div>
+      </div>
+      <div class="stat-card">
+        <div class="top"><span class="label">Pending Payouts</span><div class="icon-wrap icon-orange">⏳</div></div>
+        <div class="value">₹${fmtMoney(s.pendingPayoutAmount)}</div>
+        <div class="sub">${fmt(s.pendingPayoutCount)} pending to doctors</div>
+      </div>
+      <div class="stat-card">
+        <div class="top"><span class="label">Refunded</span><div class="icon-wrap icon-red">↩️</div></div>
+        <div class="value">₹${fmtMoney(s.refundedAmount)}</div>
+        <div class="sub">${fmt(s.refundedCount)} refund transactions</div>
+      </div>
+    `;
+
+    pg.total = paymentsR.meta.total;
+    document.getElementById('payments-count').textContent = paymentsR.meta.total;
+
+    const rows = paymentsR.data.map(a => `
+      <tr>
+        <td><div class="user-cell">${avatarCell(a.patientId?.profileImage, a.patientId?.name)}<div><div class="name">${esc(a.patientId?.name||'—')}</div><div class="email">${esc(a.patientId?.email||'')}</div></div></div></td>
+        <td><div class="user-cell">${avatarCell(a.doctorId?.profileImage, a.doctorId?.name)}<div><div class="name">${esc(a.doctorId?.name||'—')}</div><div class="email">${esc(a.doctorId?.specialization||'')}</div></div></div></td>
+        <td>${fmtDate(a.paymentDate || a.date)}</td>
+        <td><span class="badge badge-gray">${esc(a.paymentMethod||'—')}</span></td>
+        <td>₹${fmt(a.consultationFees)}</td>
+        <td>₹${fmt(a.platformFees)}</td>
+        <td><strong>₹${fmt(a.totalAmount)}</strong></td>
+        <td>${paymentBadge(a.paymentStatus)}</td>
+        <td>${payoutBadge(a.payoutStatus)}</td>
+      </tr>`).join('') || '<tr><td colspan="9"><div class="empty"><div class="icon">💳</div><p>No transactions found</p></div></td></tr>';
+
+    document.getElementById('payments-tbody').innerHTML = rows;
+    renderPagination('payments', pg, loadPayments);
+  } catch (err) { toast('Failed to load payments: ' + err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  ADMINS
+// ══════════════════════════════════════════════════════════════
+async function loadAdmins() {
+  document.getElementById('admins-tbody').innerHTML = '<tr><td colspan="6"><div class="loading"><div class="spinner"></div></div></td></tr>';
+  try {
+    const r = await get('/admins');
+    document.getElementById('admins-count').textContent = r.data.length;
+
+    const rows = r.data.map(a => `
+      <tr>
+        <td><div class="user-cell"><div class="avatar-sm" style="background:${a.role==='super_admin'?'#ede9fe':'#eff6ff'};color:${a.role==='super_admin'?'#7c3aed':'#2563eb'}">${a.name.slice(0,2).toUpperCase()}</div><div><div class="name">${esc(a.name)}</div><div class="email">${esc(a.email)}</div></div></div></td>
+        <td>${a.role === 'super_admin' ? '<span class="badge badge-purple">⭐ Super Admin</span>' : '<span class="badge badge-blue">🔧 Admin</span>'}</td>
+        <td>
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            ${a.permissions?.userManagement ? '<span class="badge badge-gray">👥 Users</span>' : ''}
+            ${a.permissions?.doctorManagement ? '<span class="badge badge-gray">🩺 Doctors</span>' : ''}
+            ${a.permissions?.paymentManagement ? '<span class="badge badge-gray">💳 Payments</span>' : ''}
+            ${a.permissions?.analytics ? '<span class="badge badge-gray">📊 Analytics</span>' : ''}
+            ${a.role === 'super_admin' ? '<span class="badge badge-purple">All Access</span>' : ''}
+          </div>
+        </td>
+        <td>${a.lastLogin ? fmtDatetime(a.lastLogin) : '<span class="text-muted">Never</span>'}</td>
+        <td>${activeBadge(a.isActive)}</td>
+        <td><div class="actions">
+          ${a._id !== currentAdmin?.id ? `
+            <button class="btn-icon" title="Edit Permissions" onclick="openEditPermsModal('${a._id}','${esc(a.name)}',${JSON.stringify(a.permissions).replace(/"/g,'&quot;')})">✏️</button>
+            <button class="btn-icon ${a.isActive ? 'danger' : 'success'}" title="${a.isActive ? 'Deactivate' : 'Activate'}" onclick="confirmToggleAdmin('${a._id}','${esc(a.name)}',${a.isActive})">${a.isActive ? '🚫' : '✅'}</button>
+            <button class="btn-icon danger" title="Delete" onclick="confirmDeleteAdmin('${a._id}','${esc(a.name)}')">🗑️</button>
+          ` : '<span class="text-muted text-sm">(You)</span>'}
+        </div></td>
+      </tr>`).join('') || '<tr><td colspan="6"><div class="empty"><div class="icon">🔐</div><p>No admins found</p></div></td></tr>';
+
+    document.getElementById('admins-tbody').innerHTML = rows;
+  } catch (err) { toast('Failed to load admins: ' + err.message, 'error'); }
+}
+
+// ── Create Admin ─────────────────────────────────────────────
+function openCreateAdminModal() {
+  document.getElementById('ca-name').value = '';
+  document.getElementById('ca-email').value = '';
+  document.getElementById('ca-pass').value = '';
+  document.getElementById('ca-role').value = 'admin';
+  ['user','doc','pay','analytics'].forEach(id => {
+    document.getElementById('perm-'+id).checked = false;
+    document.getElementById('perm-'+id+'-wrap').classList.remove('checked');
+  });
+  openModal('modal-create-admin');
+}
+
+async function createAdmin() {
+  const name  = document.getElementById('ca-name').value.trim();
+  const email = document.getElementById('ca-email').value.trim();
+  const pass  = document.getElementById('ca-pass').value;
+  const role  = document.getElementById('ca-role').value;
+
+  if (!name || !email || !pass) { toast('Name, email and password are required', 'error'); return; }
+
+  const permissions = {
+    userManagement:    document.getElementById('perm-user').checked,
+    doctorManagement:  document.getElementById('perm-doc').checked,
+    paymentManagement: document.getElementById('perm-pay').checked,
+    analytics:         document.getElementById('perm-analytics').checked,
+  };
+
+  try {
+    await post('/admins/create', { name, email, pass, role, permissions });
+    toast('Admin created successfully', 'success');
+    closeModal('modal-create-admin');
+    loadAdmins();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ── Edit Permissions ─────────────────────────────────────────
+function openEditPermsModal(id, name, perms) {
+  editingAdminId = id;
+  document.getElementById('ep-admin-name').textContent = name;
+  document.getElementById('ep-user').checked = perms?.userManagement || false;
+  document.getElementById('ep-doc').checked  = perms?.doctorManagement || false;
+  document.getElementById('ep-pay').checked  = perms?.paymentManagement || false;
+  document.getElementById('ep-analytics').checked = perms?.analytics || false;
+  openModal('modal-edit-perms');
+}
+
+async function savePermissions() {
+  const permissions = {
+    userManagement:    document.getElementById('ep-user').checked,
+    doctorManagement:  document.getElementById('ep-doc').checked,
+    paymentManagement: document.getElementById('ep-pay').checked,
+    analytics:         document.getElementById('ep-analytics').checked,
+  };
+  try {
+    await put(`/admins/${editingAdminId}/permissions`, { permissions });
+    toast('Permissions updated', 'success');
+    closeModal('modal-edit-perms');
+    loadAdmins();
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  CONFIRM MODAL
+// ══════════════════════════════════════════════════════════════
+function confirmToggle(type, id, name, isActive) {
+  const action = isActive ? 'deactivate' : 'activate';
+  document.getElementById('confirm-title').textContent = `${cap(action)} ${type === 'user' ? 'Patient' : ''}`;
+  document.getElementById('confirm-message').textContent = `Are you sure you want to ${action} "${name}"?`;
+  document.getElementById('confirm-btn').textContent = cap(action);
+  document.getElementById('confirm-btn').className = `btn-modal ${isActive ? 'danger' : 'primary'}`;
+  confirmAction = () => type === 'user' ? toggleUserActive(id) : toggleDoctorActive(id);
+  openModal('modal-confirm');
+}
+
+function confirmDoctorVerify(id, name, isVerified) {
+  const action = isVerified ? 'unverify' : 'verify';
+  document.getElementById('confirm-title').textContent = `${cap(action)} Doctor`;
+  document.getElementById('confirm-message').textContent = isVerified
+    ? `Unverifying "${name}" will also deactivate their profile. Patients will no longer see them. Continue?`
+    : `Verify "${name}" as a certified doctor on the platform?`;
+  document.getElementById('confirm-btn').textContent = cap(action);
+  document.getElementById('confirm-btn').className = `btn-modal ${isVerified ? 'danger' : 'primary'}`;
+  confirmAction = () => toggleDoctorVerify(id);
+  openModal('modal-confirm');
+}
+
+function confirmToggleAdmin(id, name, isActive) {
+  document.getElementById('confirm-title').textContent = isActive ? 'Deactivate Admin' : 'Activate Admin';
+  document.getElementById('confirm-message').textContent = `${isActive ? 'Deactivate' : 'Activate'} admin "${name}"?`;
+  document.getElementById('confirm-btn').textContent = isActive ? 'Deactivate' : 'Activate';
+  document.getElementById('confirm-btn').className = `btn-modal ${isActive ? 'danger' : 'primary'}`;
+  confirmAction = async () => { await put(`/admins/${id}/toggle-active`); toast('Admin status updated', 'success'); loadAdmins(); };
+  openModal('modal-confirm');
+}
+
+function confirmDeleteAdmin(id, name) {
+  document.getElementById('confirm-title').textContent = 'Delete Admin';
+  document.getElementById('confirm-message').textContent = `Permanently delete admin "${name}"? This cannot be undone.`;
+  document.getElementById('confirm-btn').textContent = 'Delete';
+  document.getElementById('confirm-btn').className = 'btn-modal danger';
+  confirmAction = async () => { await del(`/admins/${id}`); toast('Admin deleted', 'success'); loadAdmins(); };
+  openModal('modal-confirm');
+}
+
+async function runConfirmAction() {
+  try {
+    closeModal('modal-confirm');
+    if (confirmAction) await confirmAction();
+  } catch (err) { toast(err.message, 'error'); }
+  confirmAction = null;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  MODAL HELPERS
+// ══════════════════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ══════════════════════════════════════════════════════════════
+//  PAGINATION
+// ══════════════════════════════════════════════════════════════
+function renderPagination(key, pg, loadFn) {
+  const el = document.getElementById(key + '-pagination');
+  if (!el) return;
+  const totalPages = Math.ceil(pg.total / pg.limit);
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+
+  const start = (pg.page - 1) * pg.limit + 1;
+  const end   = Math.min(pg.page * pg.limit, pg.total);
+
+  let btns = '';
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || (i >= pg.page - 1 && i <= pg.page + 1)) {
+      btns += `<button class="page-btn ${i === pg.page ? 'active' : ''}" onclick="gotoPage('${key}',${i})">${i}</button>`;
+    } else if (i === 2 || i === totalPages - 1) {
+      btns += `<span style="padding:5px 4px;color:var(--text-3)">…</span>`;
+    }
+  }
+
+  el.innerHTML = `
+    <span class="page-info">Showing ${start}–${end} of ${pg.total}</span>
+    <div class="page-btns">
+      <button class="page-btn" onclick="gotoPage('${key}',${pg.page-1})" ${pg.page===1?'disabled':''}>‹</button>
+      ${btns}
+      <button class="page-btn" onclick="gotoPage('${key}',${pg.page+1})" ${pg.page===totalPages?'disabled':''}>›</button>
+    </div>`;
+}
+
+const loaders = { users: loadUsers, doctors: loadDoctors, appointments: loadAppointments, payments: loadPayments };
+function gotoPage(key, page) {
+  pagination[key].page = page;
+  loaders[key]();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  FORMAT HELPERS
+// ══════════════════════════════════════════════════════════════
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt(n) { return (n||0).toLocaleString('en-IN'); }
+function fmtMoney(n) { return Number(n||0).toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function fmtDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
+}
+function fmtDatetime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function fmtTime(s) {
+  if (!s) return '';
+  try { return new Date(s).toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' }); } catch { return s; }
+}
+
+function avatarCell(img, name) {
+  const n = name || '?';
+  if (img) return `<div class="avatar-sm"><img src="${esc(img)}" alt="${esc(n)}" onerror="this.parentElement.textContent='${n.slice(0,2).toUpperCase()}'"/></div>`;
+  return `<div class="avatar-sm">${n.slice(0,2).toUpperCase()}</div>`;
+}
+
+function statusBadge(s) {
+  const map = { Scheduled:'badge-blue', Completed:'badge-green', Cancelled:'badge-red', 'In Progress':'badge-orange' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s||'—')}</span>`;
+}
+function typeBadge(s) {
+  return s === 'Video Consultation'
+    ? '<span class="badge badge-blue">📹 Video</span>'
+    : '<span class="badge badge-purple">📞 Voice</span>';
+}
+function paymentBadge(s) {
+  const map = { Paid:'badge-green', Pending:'badge-orange', refunded:'badge-red' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s||'—')}</span>`;
+}
+function payoutBadge(s) {
+  const map = { Paid:'badge-green', Pending:'badge-orange', Cancelled:'badge-red' };
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s||'—')}</span>`;
+}
+function activeBadge(b) {
+  return b
+    ? '<span class="badge badge-green">● Active</span>'
+    : '<span class="badge badge-gray">● Inactive</span>';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════════════════════
+(async () => {
+  if (authToken) {
+    try {
+      const r = await get('/auth/me');
+      currentAdmin = r.data;
+      initApp();
+    } catch (e) {
+      authToken = ''; localStorage.removeItem('uc_admin_token');
+    }
+  }
+})();
+</script>
+</body>
+</html>

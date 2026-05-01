@@ -13,6 +13,44 @@ interface PatientOnboardingData {
   emergencyContact: EmergencyContact; medicalHistory: MedicalHistory;
 }
 
+interface UCInputProps {
+  label: string;
+  name: string;
+  type?: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  placeholder?: string;
+}
+
+const UCInput = ({ label, name, type = 'text', value, onChange, placeholder = '' }: UCInputProps) => (
+  <div className='space-y-2'>
+    <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+    <input
+      name={name} type={type} value={value} onChange={onChange} placeholder={placeholder}
+      className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200'
+    />
+  </div>
+);
+
+interface UCTextareaProps {
+  label: string;
+  id: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  rows?: number;
+}
+
+const UCTextarea = ({ label, id, value, onChange, placeholder = '', rows = 3 }: UCTextareaProps) => (
+  <div className='space-y-2'>
+    <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+    <textarea
+      id={id} value={value} onChange={onChange} rows={rows} placeholder={placeholder}
+      className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200 resize-none'
+    />
+  </div>
+);
+
 const STEPS = [
   { number: 1, title: 'Basic Details',      icon: User,       desc: 'Tell us about yourself' },
   { number: 2, title: 'Emergency Contact',  icon: Phone,      desc: 'Someone we can reach' },
@@ -59,26 +97,6 @@ const PatientOnboardingForm = () => {
   const step2Valid = !!formData.emergencyContact.name && !!formData.emergencyContact.phone && !!formData.emergencyContact.relationship;
   const step3Valid = !!formData.medicalHistory.allergies && !!formData.medicalHistory.currentMedications && !!formData.medicalHistory.chronicConditions;
   const isNextDisabled = (currentStep === 1 && !step1Valid) || (currentStep === 2 && !step2Valid);
-
-  const UCInput = ({ label, name, type = 'text', value, onChange, placeholder = '' }: any) => (
-    <div className='space-y-2'>
-      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
-      <input
-        name={name} type={type} value={value} onChange={onChange} placeholder={placeholder}
-        className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200'
-      />
-    </div>
-  );
-
-  const UCTextarea = ({ label, id, value, onChange, placeholder = '' }: any) => (
-    <div className='space-y-2'>
-      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
-      <textarea
-        id={id} value={value} onChange={onChange} rows={3} placeholder={placeholder}
-        className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200 resize-none'
-      />
-    </div>
-  );
 
   return (
     <>
@@ -201,8 +219,8 @@ const PatientOnboardingForm = () => {
               <p className='text-xs font-semibold text-slate-500 mt-2'>{STEPS[currentStep - 1]?.title}</p>
             </div>
 
-            {/* Form content */}
-            <div key={currentStep} className='step-animate'>
+             {/* Form content */}
+             <div className='step-animate'>
 
               {/* Step 1: Basic Details */}
               {currentStep === 1 && (

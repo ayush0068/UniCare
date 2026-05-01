@@ -8,6 +8,42 @@ import { healthcareCategoriesList, specializations } from '@/lib/constant'
 import { Checkbox } from '../ui/checkbox'
 import { ArrowLeft, ArrowRight, CheckCircle, Clock, MapPin, Plus, Stethoscope, Trash2, X } from 'lucide-react'
 
+interface UCInputProps {
+  label: string;
+  name: string;
+  type?: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  placeholder?: string;
+}
+
+const UCInput = ({ label, name, type = 'text', value, onChange, placeholder = '' }: UCInputProps) => (
+  <div className='space-y-2'>
+    <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+    <input name={name} type={type} value={value} onChange={onChange} placeholder={placeholder}
+      className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200'
+    />
+  </div>
+)
+
+interface UCTextareaProps {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  rows?: number;
+}
+
+const UCTextarea = ({ label, name, value, onChange, placeholder = '', rows = 3 }: UCTextareaProps) => (
+  <div className='space-y-2'>
+    <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+    <textarea name={name} value={value} onChange={onChange} rows={rows} placeholder={placeholder}
+      className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200 resize-none'
+    />
+  </div>
+)
+
 const STEPS = [
   { number: 1, title: 'Professional Info', icon: Stethoscope, desc: 'Your medical credentials' },
   { number: 2, title: 'Hospital / Clinic', icon: MapPin, desc: 'Where you practice' },
@@ -58,26 +94,6 @@ const DoctorOnboardingForm = () => {
   const step1Valid = !!formData.specialization && formData.categories.length > 0 && !!formData.qualification
   const step2Valid = !!formData.hospitalInfo.name && !!formData.hospitalInfo.address && !!formData.hospitalInfo.city
   const step3Valid = !!formData.availabilityRange.startDate && !!formData.availabilityRange.endDate
-
-  const UCInput = ({ label, name, type = 'text', value, onChange, placeholder = '' }: any) => (
-    <div className='space-y-2'>
-      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
-      <input name={name} type={type} value={value} onChange={onChange} placeholder={placeholder}
-        className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200'
-      />
-    </div>
-  )
-
-  const UCTextarea = ({ label, name, value, onChange, placeholder = '', rows = 3 }: any) => (
-    <div className='space-y-2'>
-      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
-      <textarea name={name} value={value} onChange={onChange} rows={rows} placeholder={placeholder}
-        className='w-full px-4 py-3 rounded-xl border-2 border-slate-200 bg-[#F8F7F4] text-sm font-medium text-slate-800 placeholder:text-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none transition-all duration-200 resize-none'
-      />
-    </div>
-  )
-
-  const DAYS = [{ day: 'Sun', v: 0 }, { day: 'Mon', v: 1 }, { day: 'Tue', v: 2 }, { day: 'Wed', v: 3 }, { day: 'Thu', v: 4 }, { day: 'Fri', v: 5 }, { day: 'Sat', v: 6 }]
 
   return (
     <>
@@ -162,7 +178,7 @@ const DoctorOnboardingForm = () => {
               <p className='text-xs font-semibold text-slate-500 mt-2'>{STEPS[currentStep - 1]?.title}</p>
             </div>
 
-            <div key={currentStep} className='step-animate'>
+             <div className='step-animate'>
 
               {/* Step 1 */}
               {currentStep === 1 && (

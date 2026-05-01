@@ -25,12 +25,14 @@ interface PaymentStepInterface {
   loading: boolean;
   appointmentId?: string;
   patientName?: string;
+  isGuest?: boolean;
+  guestSurcharge?: number;
 }
 
 const PaymentStep = ({
   selectedDate, selectedSlot, consultationType, doctorName,
   slotDuration, consultationFee, isProcessing, onBack, onConfirm,
-  onPaymentSuccess, loading, appointmentId, patientName,
+  onPaymentSuccess, loading, appointmentId, patientName, isGuest = false, guestSurcharge = 0
 }: PaymentStepInterface) => {
   const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'success' | 'failed'>('idle');
   const { user } = userAuthStore();
@@ -38,9 +40,9 @@ const PaymentStep = ({
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const isFree = consultationFee === 0;
-  const platformFees = isFree ? 0 : Math.round(consultationFee * 0.1);
-  const totalAmount = isFree ? 0 : consultationFee + platformFees;
+  const isFree = consultationFee === 0 && !isGuest;
+  const platformFees = (isFree && !isGuest) ? 0 : Math.round(consultationFee * 0.1);
+  const totalAmount = isFree ? 0 : consultationFee + platformFees + guestSurcharge;
 
   const [shouldAutoOpen, setShouldAutoOpen] = useState(true);
   const modalCloseCountRef = useRef<number>(0);
@@ -162,6 +164,8 @@ const PaymentStep = ({
     { icon: Clock, label: 'Duration', value: `${slotDuration} minutes` },
   ];
 
+  
+
   return (
     <>
       <style>{`
@@ -276,6 +280,13 @@ const PaymentStep = ({
                     : <span className='font-semibold text-white'>₹{platformFees}</span>
                   }
                 </div>
+
+                {isGuest && (
+                  <div className='flex justify-between items-center text-sm'>
+                    <span className='text-slate-400'>Guest Convenience Fee</span>
+                    <span className='font-semibold text-amber-400'>₹{guestSurcharge}</span>
+                  </div>
+                )}
 
                 <div className='h-px bg-slate-800 my-1' />
 

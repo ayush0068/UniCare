@@ -2,16 +2,18 @@
 
 import { consultationTypes } from '@/lib/constant';
 import React, { useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, ChevronRight, Sparkles, Zap } from 'lucide-react';
+import { ArrowLeft, CheckCircle, ChevronRight, LogIn, Sparkles, Zap } from 'lucide-react';
+import Link from 'next/link';
 
 interface ConsultationStepInterface {
   consultationType: string;
   setConsultationType: (type: string) => void;
   symptoms: string;
   setSymptoms: (symptoms: string) => void;
-  doctorFees: number;
+  doctorFees?: number;
   doctorId: string;
   discountType: 'none' | 'free' | 'half';
+  isGuest?: boolean;
   onBack: () => void;
   onContinue: () => void;
 }
@@ -20,6 +22,7 @@ const ConsultationStep = ({
   consultationType, setConsultationType,
   symptoms, setSymptoms,
   doctorFees, doctorId, discountType,
+  isGuest = false,
   onBack, onContinue,
 }: ConsultationStepInterface) => {
   const [textFocused, setTextFocused] = useState(false);
@@ -27,6 +30,7 @@ const ConsultationStep = ({
   const getConsultationPrice = (selectedType = consultationType) => {
     const typeAddon = consultationTypes.find(ct => ct.type === selectedType)?.price || 0;
     const base = Math.max(0, doctorFees + typeAddon);
+    if (isGuest) return base; // guests never get discounts
     if (discountType === 'free') return 0;
     if (discountType === 'half') return Math.ceil(base / 2);
     return base;
@@ -37,9 +41,10 @@ const ConsultationStep = ({
     return Math.max(0, doctorFees + typeAddon);
   };
 
-  const hasDiscount = discountType !== 'none';
-  const isFree = discountType === 'free';
-  const isHalf = discountType === 'half';
+  // Guests never see loyalty discount UI
+  const hasDiscount = !isGuest && discountType !== 'none';
+  const isFree = !isGuest && discountType === 'free';
+  const isHalf = !isGuest && discountType === 'half';
   const symLen = symptoms.trim().length;
   const symMax = 1000;
 
@@ -121,15 +126,15 @@ const ConsultationStep = ({
       <div className='uc-font cs-animate'>
 
         {/* ─── Header ───────────────────────────────── */}
-        <div className='mb-8'>
-          <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-500 mb-2'>Step 1 of 3</p>
-          <h3 className='uc-serif text-3xl font-bold text-slate-900 leading-tight'>
-            Consultation<br />
-            <em className='not-italic text-sky-500'>Details</em>
-          </h3>
-        </div>
+         <div className='mb-8'>
+           <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-500 mb-2'>Step 2 of 3</p>
+           <h3 className='uc-serif text-3xl font-bold text-slate-900 leading-tight'>
+             Consultation<br />
+             <em className='not-italic text-sky-500'>Details</em>
+           </h3>
+         </div>
 
-        {/* ─── Loyalty Discount Banner ──────────────── */}
+        {/* ─── Loyalty Discount Banner — registered patients only ──────────────── */}
         {hasDiscount && (
           <div className={`banner-animate flex items-start gap-4 p-5 rounded-2xl border mb-8 ${
             isFree
@@ -153,6 +158,26 @@ const ConsultationStep = ({
                   ? 'You get 2 free follow-up consultations within 10 days of your first booking with this doctor.'
                   : 'You get 50% off on your 3rd consultation within 10 days with this doctor.'
                 }
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ─── Guest Notice Banner ──────────────── */}
+        {isGuest && (
+          <div className='banner-animate flex items-start gap-4 p-5 rounded-2xl border mb-8 bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200'>
+            <div className='w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-md bg-slate-700 shadow-slate-300'>
+              <LogIn className='w-5 h-5 text-white' />
+            </div>
+            <div className='flex-1 min-w-0'>
+              <p className='text-sm font-bold text-slate-800'>Booking as Guest</p>
+              <p className='text-xs mt-1 leading-relaxed text-slate-500'>
+                A <span className='font-semibold text-amber-600'>₹30 guest convenience fee</span> applies to this booking.
+                Loyalty discounts are not available for guest sessions.{' '}
+                <Link href='/signup/patient' className='text-sky-500 hover:underline font-semibold'>
+                  Create a free account
+                </Link>{' '}
+                to unlock discounts and remove this fee.
               </p>
             </div>
           </div>
@@ -223,7 +248,7 @@ const ConsultationStep = ({
                       ) : (
                         <div>
                           <p className='text-base font-bold text-slate-800'>₹{currentPrice}</p>
-                          {price !== 0 && (
+                          {price !== 0 && !isGuest && (
                             <p className='text-[11px] text-emerald-600 font-semibold mt-0.5'>
                               Save ₹{Math.abs(price)}
                             </p>
@@ -245,7 +270,9 @@ const ConsultationStep = ({
               ? 'bg-emerald-50 border border-emerald-100'
               : isHalf
                 ? 'bg-amber-50 border border-amber-100'
-                : 'bg-sky-50 border border-sky-100'
+                : isGuest
+                  ? 'bg-slate-50 border border-slate-200'
+                  : 'bg-sky-50 border border-sky-100'
           }`}>
             <div className='flex items-center gap-2'>
               <CheckCircle className={`w-4 h-4 ${isFree ? 'text-emerald-500' : isHalf ? 'text-amber-500' : 'text-sky-500'}`} />
@@ -253,9 +280,16 @@ const ConsultationStep = ({
                 {consultationType}
               </span>
             </div>
-            <span className={`text-base font-bold ${isFree ? 'text-emerald-600' : isHalf ? 'text-amber-600' : 'text-slate-900'}`}>
-              {isFree ? 'FREE' : `₹${getConsultationPrice()}`}
-            </span>
+            <div className='flex items-center gap-2'>
+              <span className={`text-base font-bold ${isFree ? 'text-emerald-600' : isHalf ? 'text-amber-600' : 'text-slate-900'}`}>
+                {isFree ? 'FREE' : `₹${getConsultationPrice()}`}
+              </span>
+              {isGuest && (
+                <span className='text-[11px] text-amber-600 font-semibold bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg'>
+                  +₹30 fee
+                </span>
+              )}
+            </div>
           </div>
         )}
 

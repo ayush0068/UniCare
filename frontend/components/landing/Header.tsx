@@ -1,11 +1,12 @@
 'use client';
 import Link from 'next/link';
-import { Calendar, ChevronDown, LogOut, Menu, Stethoscope, User, X } from 'lucide-react';
+import { Calendar, ChevronDown, LogOut, Menu, Shield, Stethoscope, User, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { userAuthStore } from '@/store/authStore';
+import { useAdminStore } from '@/lib/admin/store';
 
 interface HeaderProps {
   showDashboardNav?: boolean;
@@ -20,6 +21,7 @@ interface NavigationItem {
 
 const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
   const { user, isAuthenticated, logout } = userAuthStore();
+  const { token: adminToken } = useAdminStore();
   const pathname = usePathname();
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
@@ -91,6 +93,12 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
           50% { transform: scale(1.4); opacity: 0.6; }
         }
         .online-dot { animation: dot-pulse 2s ease-in-out infinite; }
+
+        @keyframes admin-glow {
+          0%, 100% { box-shadow: 0 0 20px rgba(100, 116, 139, 0.3), 0 4px 12px rgba(0, 0, 0, 0.1); }
+          50% { box-shadow: 0 0 28px rgba(100, 116, 139, 0.5), 0 6px 16px rgba(0, 0, 0, 0.15); }
+        }
+        .admin-btn { animation: admin-glow 3s ease-in-out infinite; }
       `}</style>
 
       <header className={`uc-font fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'pt-2 pb-2' : 'pt-4 pb-2'}`}>
@@ -202,28 +210,48 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              ) : (
-                <>
-                  <Link href='/login/patient' className='hidden md:block'>
-                    <button className='text-[13px] font-medium text-slate-600 hover:text-slate-900 px-3.5 py-2 rounded-xl hover:bg-slate-50/80 transition-all duration-200'>
-                      Sign in
-                    </button>
-                  </Link>
-                  <Link href='/signup/patient' className='hidden md:block'>
-                    <button className='text-[13px] font-semibold bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-white px-4 py-2 rounded-xl shadow-md shadow-sky-300/40 hover:shadow-sky-400/50 transition-all duration-200 hover:-translate-y-px active:translate-y-0'>
-                      Book Consultation
-                    </button>
-                  </Link>
-                  <button
-                    className='md:hidden w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors duration-200'
-                    onClick={() => setMobileOpen(!mobileOpen)}
-                    aria-label='Toggle menu'
-                  >
-                    {mobileOpen
-                      ? <X className='w-4 h-4 text-slate-700' />
-                      : <Menu className='w-4 h-4 text-slate-700' />
-                    }
-                  </button>
+               ) : (
+                 <>
+                   <Link href='/login/patient' className='hidden md:block'>
+                     <button className='text-[13px] font-medium text-slate-600 hover:text-slate-900 px-3.5 py-2 rounded-xl hover:bg-slate-50/80 transition-all duration-200'>
+                       Sign in
+                     </button>
+                   </Link>
+                   <Link href='/signup/patient' className='hidden md:block'>
+                     <button className='text-[13px] font-semibold bg-gradient-to-b from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-white px-4 py-2 rounded-xl shadow-md shadow-sky-300/40 hover:shadow-sky-400/50 transition-all duration-200 hover:-translate-y-px active:translate-y-0'>
+                       Book Consultation
+                     </button>
+                   </Link>
+
+                   {/* Modern Admin Login Button */}
+                   {!adminToken && (
+                     <Link href='/admin-login' className='hidden md:block'>
+                       <button className='group relative ml-1 overflow-hidden rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300 hover:scale-105 active:scale-95 admin-btn'>
+                         {/* Gradient background */}
+                         <span className='absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 opacity-95 transition-opacity group-hover:opacity-100' />
+                         {/* Shine effect */}
+                         <span className='absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out' />
+                         {/* Glow */}
+                         <span className='absolute -inset-1 rounded-xl bg-gradient-to-r from-sky-500/30 to-indigo-500/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300' />
+                         {/* Content */}
+                         <span className='relative flex items-center gap-2 text-white'>
+                           <Shield className='w-3.5 h-3.5' />
+                           <span>Admin</span>
+                         </span>
+                       </button>
+                     </Link>
+                   )}
+
+                   <button
+                     className='md:hidden w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors duration-200'
+                     onClick={() => setMobileOpen(!mobileOpen)}
+                     aria-label='Toggle menu'
+                   >
+                     {mobileOpen
+                       ? <X className='w-4 h-4 text-slate-700' />
+                       : <Menu className='w-4 h-4 text-slate-700' />
+                     }
+                   </button>
                 </>
               )}
             </div>
@@ -243,18 +271,28 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                     {link.label}
                   </Link>
                 ))}
-                <div className='pt-3 mt-1 border-t border-slate-100 flex flex-col gap-2 pb-1'>
-                  <Link href='/login/patient' onClick={() => setMobileOpen(false)}>
-                    <button className='w-full text-sm font-medium text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all duration-200'>
-                      Sign in
-                    </button>
-                  </Link>
-                  <Link href='/signup/patient' onClick={() => setMobileOpen(false)}>
-                    <button className='w-full text-sm font-semibold bg-gradient-to-b from-sky-500 to-sky-600 text-white px-4 py-2.5 rounded-xl shadow-md shadow-sky-200/50 hover:from-sky-400 hover:to-sky-500 transition-all duration-200'>
-                      Book Consultation
-                    </button>
-                  </Link>
-                </div>
+                 <div className='pt-3 mt-1 border-t border-slate-100 flex flex-col gap-2 pb-1'>
+                   <Link href='/login/patient' onClick={() => setMobileOpen(false)}>
+                     <button className='w-full text-sm font-medium text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all duration-200'>
+                       Sign in
+                     </button>
+                   </Link>
+                   <Link href='/signup/patient' onClick={() => setMobileOpen(false)}>
+                     <button className='w-full text-sm font-semibold bg-gradient-to-b from-sky-500 to-sky-600 text-white px-4 py-2.5 rounded-xl shadow-md shadow-sky-200/50 hover:from-sky-400 hover:to-sky-500 transition-all duration-200'>
+                       Book Consultation
+                     </button>
+                   </Link>
+
+                   {/* Admin button in mobile menu */}
+                   {!adminToken && (
+                     <Link href='/admin-login' onClick={() => setMobileOpen(false)}>
+                       <button className='group w-full flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-slate-700 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-slate-200/50 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] admin-btn'>
+                         <Shield className='w-4 h-4' />
+                         Admin Access
+                       </button>
+                     </Link>
+                   )}
+                 </div>
               </div>
             </div>
           )}

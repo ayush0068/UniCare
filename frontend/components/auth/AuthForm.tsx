@@ -2,12 +2,11 @@
 
 import { userAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { Label } from '../ui/label';
-import { Input } from '../ui/input';
+import { Eye, EyeOff, Stethoscope, Heart, ShieldCheck, Star, ArrowRight, User, Lock, Mail, LogIn } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import Link from 'next/link';
-import { Eye, EyeOff, Stethoscope, Heart, ShieldCheck, Star, Clock, ArrowRight, User, Lock, Mail } from 'lucide-react';
 
 interface AuthFormProps {
   type: 'login' | 'signup';
@@ -36,7 +35,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
 
-  const { registerDoctor, registerPatient, loginDoctor, loginPatient, loading, error } = userAuthStore();
+  const { registerDoctor, registerPatient, loginDoctor, loginPatient, loginAsGuest, loading, error } = userAuthStore();
   const router = useRouter();
 
   const isSignUp = type === 'signup';
@@ -71,6 +70,15 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
     window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google?type=${userRole}`;
   };
 
+  const handleGuestLogin = async () => {
+    try {
+      await loginAsGuest();
+      router.push('/doctor-list');
+    } catch (err) {
+      console.error('Guest login failed:', err);
+    }
+  };
+
   const altLinkPath = isSignUp ? `/login/${userRole}` : `/signup/${userRole}`;
 
   /* ─────────────────────────── Render ─────────────────────────── */
@@ -98,7 +106,6 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
         }
         .hl-item { animation: highlight-in 0.5s cubic-bezier(0.16,1,0.3,1) both; }
 
-        /* Custom input underline focus */
         .uc-input {
           border: none;
           border-bottom: 2px solid;
@@ -124,6 +131,17 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
         .submit-btn:hover:not(:disabled) { transform: translateY(-1px); }
         .submit-btn:active:not(:disabled) { transform: translateY(0); }
 
+        .guest-btn {
+          transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
+        }
+        .guest-btn:hover:not(:disabled) {
+          border-color: #94a3b8;
+          color: #475569;
+          background-color: #f8fafc;
+          transform: translateY(-1px);
+        }
+        .guest-btn:active:not(:disabled) { transform: translateY(0); }
+
         @keyframes blob-dr {
           0%,100% { transform: translate(0,0) scale(1); }
           50%      { transform: translate(12px,-10px) scale(1.06); }
@@ -138,14 +156,10 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
         {isDoctor ? (
           /* ── Doctor Panel: Deep slate, authoritative ── */
           <div className='panel-animate hidden lg:flex lg:w-[45%] xl:w-[42%] flex-col justify-between bg-slate-950 relative overflow-hidden px-12 py-12'>
-            {/* Background elements */}
             <div className='blob-animate absolute top-[-80px] right-[-60px] w-80 h-80 bg-sky-500/8 rounded-full blur-3xl pointer-events-none' />
             <div className='blob-animate-alt absolute bottom-[-60px] left-[-40px] w-64 h-64 bg-blue-600/6 rounded-full blur-2xl pointer-events-none' />
-
-            {/* Grid texture */}
             <div className='absolute inset-0 opacity-[0.04]' style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px)', backgroundSize: '48px 48px' }} />
 
-            {/* Logo */}
             <div className='relative z-10 flex items-center gap-2.5'>
               <div className='w-8 h-8 bg-gradient-to-br from-sky-400 to-sky-600 rounded-xl flex items-center justify-center shadow-lg shadow-sky-500/30'>
                 <Stethoscope className='w-4 h-4 text-white' />
@@ -156,7 +170,6 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
               </span>
             </div>
 
-            {/* Main copy */}
             <div className='relative z-10 space-y-6'>
               <div>
                 <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-400 mb-4'>For Medical Professionals</p>
@@ -171,11 +184,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
 
               <div className='space-y-3'>
                 {DOCTOR_HIGHLIGHTS.map((item, i) => (
-                  <div
-                    key={i}
-                    className='hl-item flex items-center gap-3'
-                    style={{ animationDelay: `${0.3 + i * 0.08}s` }}
-                  >
+                  <div key={i} className='hl-item flex items-center gap-3' style={{ animationDelay: `${0.3 + i * 0.08}s` }}>
                     <div className='w-9 h-9 bg-slate-800 border border-slate-700/80 rounded-xl flex items-center justify-center flex-shrink-0 text-base'>
                       {item.icon}
                     </div>
@@ -184,14 +193,12 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                 ))}
               </div>
 
-              {/* Credential badge */}
               <div className='inline-flex items-center gap-2 bg-sky-500/10 border border-sky-500/20 rounded-xl px-4 py-3'>
                 <ShieldCheck className='w-4 h-4 text-sky-400 flex-shrink-0' />
                 <span className='text-sky-300 text-xs font-semibold'>All doctors are verified & credentialed</span>
               </div>
             </div>
 
-            {/* Bottom stat */}
             <div className='relative z-10 grid grid-cols-3 gap-4 pt-8 border-t border-slate-800/60'>
               {[{ v: '500+', l: 'Doctors' }, { v: '50K+', l: 'Patients' }, { v: '4.9★', l: 'Rating' }].map((s) => (
                 <div key={s.l} className='text-center'>
@@ -205,14 +212,10 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
         ) : (
           /* ── Patient Panel: Warm cream, approachable ── */
           <div className='panel-animate hidden lg:flex lg:w-[45%] xl:w-[42%] flex-col justify-between bg-[#F0F7FF] relative overflow-hidden px-12 py-12'>
-            {/* Soft blobs */}
             <div className='blob-animate absolute top-[-60px] right-[-40px] w-72 h-72 bg-sky-200/60 rounded-full blur-3xl pointer-events-none' />
             <div className='blob-animate-alt absolute bottom-[-40px] left-0 w-56 h-56 bg-blue-100/80 rounded-full blur-2xl pointer-events-none' />
-
-            {/* Dot grid */}
             <div className='absolute inset-0 opacity-30' style={{ backgroundImage: 'radial-gradient(circle, #94a3b8 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
-            {/* Logo */}
             <div className='relative z-10 flex items-center gap-2.5'>
               <div className='w-8 h-8 bg-gradient-to-br from-sky-400 to-sky-600 rounded-xl flex items-center justify-center shadow-md shadow-sky-200'>
                 <Stethoscope className='w-4 h-4 text-white' />
@@ -223,7 +226,6 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
               </span>
             </div>
 
-            {/* Main copy */}
             <div className='relative z-10 space-y-6'>
               <div>
                 <p className='text-[11px] font-semibold uppercase tracking-widest text-sky-500 mb-4'>For Patients</p>
@@ -238,11 +240,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
 
               <div className='space-y-3'>
                 {PATIENT_HIGHLIGHTS.map((item, i) => (
-                  <div
-                    key={i}
-                    className='hl-item flex items-center gap-3'
-                    style={{ animationDelay: `${0.3 + i * 0.08}s` }}
-                  >
+                  <div key={i} className='hl-item flex items-center gap-3' style={{ animationDelay: `${0.3 + i * 0.08}s` }}>
                     <div className='w-9 h-9 bg-white border border-sky-100 shadow-sm rounded-xl flex items-center justify-center flex-shrink-0 text-base'>
                       {item.icon}
                     </div>
@@ -251,7 +249,6 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                 ))}
               </div>
 
-              {/* Testimonial snippet */}
               <div className='bg-white rounded-2xl p-4 border border-sky-100 shadow-sm'>
                 <div className='flex gap-0.5 mb-2'>
                   {[...Array(5)].map((_, i) => (
@@ -265,7 +262,6 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
               </div>
             </div>
 
-            {/* Bottom live badge */}
             <div className='relative z-10 flex items-center gap-3 bg-white border border-sky-100 shadow-sm rounded-2xl px-4 py-3'>
               <span className='w-2 h-2 bg-emerald-400 rounded-full animate-pulse flex-shrink-0' />
               <span className='text-sm font-semibold text-slate-700'>Doctors available right now</span>
@@ -275,7 +271,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
         )}
 
         {/* ═══════════════ RIGHT: FORM PANEL ═══════════════ */}
-        <div className={`flex-1 flex items-center justify-center px-6 py-12 ${isDoctor ? 'bg-white' : 'bg-white'}`}>
+        <div className='flex-1 flex items-center justify-center px-6 py-12 bg-white'>
           <div className='form-animate w-full max-w-md'>
 
             {/* Mobile logo */}
@@ -358,7 +354,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       onFocus={() => setFocused('name')}
                       onBlur={() => setFocused(null)}
-                      className={`uc-input w-full py-2.5 text-sm text-slate-900 placeholder:text-slate-300 border-b-2 ${focused === 'name' ? (isDoctor ? 'border-sky-500' : 'border-sky-500') : 'border-slate-200'}`}
+                      className={`uc-input w-full py-2.5 text-sm text-slate-900 placeholder:text-slate-300 border-b-2 ${focused === 'name' ? 'border-sky-500' : 'border-slate-200'}`}
                       placeholder='Dr. Arjun Sharma'
                       required
                     />
@@ -464,7 +460,7 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
             </p>
 
             {/* Switch role hint */}
-            <div className={`mt-6 flex items-center justify-center gap-2 text-xs text-slate-400 pb-4`}>
+            <div className='mt-4 flex items-center justify-center gap-2 text-xs text-slate-400'>
               <span>Are you a {isDoctor ? 'patient' : 'doctor'}?</span>
               <Link
                 href={`/${isSignUp ? 'signup' : 'login'}/${isDoctor ? 'patient' : 'doctor'}`}
@@ -473,6 +469,27 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                 {isDoctor ? 'Patient login →' : 'Doctor login →'}
               </Link>
             </div>
+
+            {/* ── Guest Login — patient login page only ── */}
+            {!isSignUp && !isDoctor && (
+              <div className='mt-6 pt-5 border-t border-slate-100'>
+                <button
+                  type='button'
+                  onClick={handleGuestLogin}
+                  disabled={loading}
+                  className='guest-btn w-full flex items-center justify-center gap-2.5 border border-dashed border-slate-300 bg-white text-slate-500 font-semibold text-sm py-3.5 px-4 rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed'
+                >
+                  <LogIn className='w-4 h-4 flex-shrink-0' />
+                  Continue as Guest
+                  <span className='ml-auto inline-flex items-center gap-1 text-[11px] font-normal text-amber-600 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg'>
+                    3 bookings · ₹30 extra
+                  </span>
+                </button>
+                <p className='text-center text-[11px] text-slate-400 mt-3 leading-relaxed'>
+                  No account needed. Limited to 3 appointments. Loyalty discounts not available for guests.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import { healthcareCategories, specializations } from '@/lib/constant';
 import { userAuthStore } from '@/store/authStore';
 import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Stethoscope, User, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Header from '../landing/Header';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
@@ -14,10 +14,70 @@ interface ProfileProps {
   userType: 'doctor' | 'patient';
 }
 
+interface FieldWrapperProps {
+  label: string;
+  children: React.ReactNode;
+}
+
+const FieldWrapper = ({ label, children }: FieldWrapperProps) => (
+  <div className='space-y-2'>
+    <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
+    {children}
+  </div>
+);
+
+interface UCInputProps {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  placeholder?: string;
+  readOnly?: boolean;
+  isEditing?: boolean;
+}
+
+const UCInput = ({ value, onChange, type = 'text', placeholder = '', readOnly = false, isEditing = true }: UCInputProps) => (
+  <input
+    type={type}
+    value={value}
+    onChange={onChange}
+    readOnly={readOnly || !isEditing}
+    placeholder={placeholder}
+    className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 transition-all duration-200
+      ${!isEditing || readOnly
+        ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
+        : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
+      }`}
+  />
+);
+
+interface UCTextareaProps {
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  rows?: number;
+  placeholder?: string;
+  isEditing?: boolean;
+}
+
+const UCTextarea = ({ value, onChange, rows = 4, placeholder = '', isEditing = true }: UCTextareaProps) => (
+  <textarea
+    value={value}
+    onChange={onChange}
+    disabled={!isEditing}
+    rows={rows}
+    placeholder={placeholder}
+    className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 resize-none transition-all duration-200
+      ${!isEditing
+        ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
+        : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
+      }`}
+  />
+);
+
 const ProfilePage = ({ userType }: ProfileProps) => {
   const { user, fetchProfile, updateProfile, loading } = userAuthStore();
   const [activeSection, setActiveSection] = useState('about');
   const [isEditing, setIsEditing] = useState(false);
+  const originalFormDataRef = useRef<any>(null);
 
   const [formData, setFormData] = useState<any>({
     name: '', email: '', phone: '', dob: '', gender: '', bloodGroup: '', about: '',
@@ -34,7 +94,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
 
   useEffect(() => {
     if (user) {
-      setFormData({
+      const userData = {
         name: user.name || '', email: user.email || '', phone: user.phone || '',
         dob: user.dob || '', gender: user.gender || '', bloodGroup: user.bloodGroup || '',
         about: user.about || '', specializations: user.specialization || '',
@@ -46,9 +106,27 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         availabilityRange: { startDate: user.availabilityRange?.startDate || '', endDate: user.availabilityRange?.endDate || '', excludedWeekdays: user.availabilityRange?.excludedWeekdays || [] },
         dailyTimeRanges: user.dailyTimeRanges || [],
         slotDurationMinutes: user.slotDurationMinutes || 30,
-      });
+      };
+      setFormData(userData);
+      if (!isEditing) {
+        originalFormDataRef.current = userData;
+      }
     }
-  }, [user]);
+  }, [user, isEditing]);
+
+  const handleStartEdit = () => {
+    // Store current form data as original before editing
+    originalFormDataRef.current = { ...formData };
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    // Restore original data
+    if (originalFormDataRef.current) {
+      setFormData(originalFormDataRef.current);
+    }
+    setIsEditing(false);
+  };
 
   const handleInputChange = (field: string, value: any) => {
     if (field.includes('.')) {
@@ -120,49 +198,11 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         { id: 'emergency', label: 'Emergency Contact', icon: Heart },
       ];
 
-  /* ─── Reusable field components ─── */
-  const FieldWrapper = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div className='space-y-2'>
-      <label className='text-[11px] font-bold uppercase tracking-widest text-slate-400'>{label}</label>
-      {children}
-    </div>
-  );
-
-  const UCInput = ({ value, onChange, type = 'text', placeholder = '', readOnly = false }: any) => (
-    <input
-      type={type}
-      value={value}
-      onChange={onChange}
-      readOnly={readOnly || !isEditing}
-      placeholder={placeholder}
-      className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 transition-all duration-200
-        ${!isEditing || readOnly
-          ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
-          : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
-        }`}
-    />
-  );
-
-  const UCTextarea = ({ value, onChange, rows = 4, placeholder = '' }: any) => (
-    <textarea
-      value={value}
-      onChange={onChange}
-      disabled={!isEditing}
-      rows={rows}
-      placeholder={placeholder}
-      className={`w-full px-4 py-3 rounded-xl border text-sm font-medium text-slate-800 placeholder:text-slate-300 resize-none transition-all duration-200
-        ${!isEditing
-          ? 'bg-slate-50 border-slate-100 text-slate-500 cursor-default'
-          : 'bg-white border-slate-200 hover:border-slate-300 focus:border-sky-400 focus:ring-2 focus:ring-sky-100 focus:outline-none'
-        }`}
-    />
-  );
-
-  /* ─── Section renderers ─── */
+   /* ─── Section renderers ─── */
   const renderAboutSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Full Name'>
-        <UCInput value={formData.name} onChange={(e: any) => handleInputChange('name', e.target.value)} placeholder='Your full name' />
+        <UCInput value={formData.name} onChange={(e) => handleInputChange('name', e.target.value)} placeholder='Your full name' isEditing={isEditing} />
       </FieldWrapper>
 
       {userType === 'patient' && (
@@ -171,7 +211,8 @@ const ProfilePage = ({ userType }: ProfileProps) => {
             <UCInput
               type='date'
               value={formData.dob ? new Date(formData.dob).toISOString().split('T')[0] : ''}
-              onChange={(e: any) => handleInputChange('dob', e.target.value)}
+              onChange={(e) => handleInputChange('dob', e.target.value)}
+              isEditing={isEditing}
             />
           </FieldWrapper>
 
@@ -209,7 +250,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
 
       {isDoctor && (
         <FieldWrapper label='About / Bio'>
-          <UCTextarea value={formData.about || ''} onChange={(e: any) => handleInputChange('about', e.target.value)} rows={5} placeholder='Tell patients about your expertise, approach, and values...' />
+          <UCTextarea value={formData.about || ''} onChange={(e) => handleInputChange('about', e.target.value)} rows={5} placeholder='Tell patients about your expertise, approach, and values...' isEditing={isEditing} />
         </FieldWrapper>
       )}
     </div>
@@ -268,15 +309,15 @@ const ProfilePage = ({ userType }: ProfileProps) => {
       </FieldWrapper>
 
       <FieldWrapper label='Qualification'>
-        <UCInput value={formData.qualification || ''} onChange={(e: any) => handleInputChange('qualification', e.target.value)} placeholder='e.g. MBBS, MD, MS' />
+        <UCInput value={formData.qualification || ''} onChange={(e) => handleInputChange('qualification', e.target.value)} placeholder='e.g. MBBS, MD, MS' isEditing={isEditing} />
       </FieldWrapper>
 
       <div className='grid grid-cols-2 gap-4'>
         <FieldWrapper label='Experience (Years)'>
-          <UCInput type='number' value={formData.experience || ''} onChange={(e: any) => handleInputChange('experience', parseInt(e.target.value) || 0)} placeholder='0' />
+          <UCInput type='number' value={formData.experience || ''} onChange={(e) => handleInputChange('experience', parseInt(e.target.value) || 0)} placeholder='0' isEditing={isEditing} />
         </FieldWrapper>
         <FieldWrapper label='Consultation Fee (₹)'>
-          <UCInput type='number' value={formData.fees} onChange={(e: any) => handleInputChange('fees', parseInt(e.target.value) || 0)} placeholder='500' />
+          <UCInput type='number' value={formData.fees} onChange={(e) => handleInputChange('fees', parseInt(e.target.value) || 0)} placeholder='500' isEditing={isEditing} />
         </FieldWrapper>
       </div>
     </div>
@@ -285,13 +326,13 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const renderHospitalSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Hospital / Clinic Name'>
-        <UCInput value={formData.hospitalInfo.name} onChange={(e: any) => handleInputChange('hospitalInfo.name', e.target.value)} placeholder='e.g. Apollo Hospital' />
+        <UCInput value={formData.hospitalInfo.name} onChange={(e) => handleInputChange('hospitalInfo.name', e.target.value)} placeholder='e.g. Apollo Hospital' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Address'>
-        <UCTextarea value={formData.hospitalInfo.address} onChange={(e: any) => handleInputChange('hospitalInfo.address', e.target.value)} rows={3} placeholder='Full street address' />
+        <UCTextarea value={formData.hospitalInfo.address} onChange={(e) => handleInputChange('hospitalInfo.address', e.target.value)} rows={3} placeholder='Full street address' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='City'>
-        <UCInput value={formData.hospitalInfo.city} onChange={(e: any) => handleInputChange('hospitalInfo.city', e.target.value)} placeholder='City name' />
+        <UCInput value={formData.hospitalInfo.city} onChange={(e) => handleInputChange('hospitalInfo.city', e.target.value)} placeholder='City name' isEditing={isEditing} />
       </FieldWrapper>
     </div>
   );
@@ -302,10 +343,10 @@ const ProfilePage = ({ userType }: ProfileProps) => {
     <div className='space-y-6'>
       <div className='grid grid-cols-2 gap-4'>
         <FieldWrapper label='Available From'>
-          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.startDate)} onChange={(e: any) => handleInputChange('availabilityRange.startDate', e.target.value)} />
+          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.startDate)} onChange={(e) => handleInputChange('availabilityRange.startDate', e.target.value)} isEditing={isEditing} />
         </FieldWrapper>
         <FieldWrapper label='Available Until'>
-          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.endDate)} onChange={(e: any) => handleInputChange('availabilityRange.endDate', e.target.value)} />
+          <UCInput type='date' value={formatDateForInput(formData.availabilityRange.endDate)} onChange={(e) => handleInputChange('availabilityRange.endDate', e.target.value)} isEditing={isEditing} />
         </FieldWrapper>
       </div>
 
@@ -373,10 +414,10 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const renderContactSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Phone Number'>
-        <UCInput value={formData.phone || ''} onChange={(e: any) => handleInputChange('phone', e.target.value)} placeholder='+91-94xxxxxx99' />
+        <UCInput value={formData.phone || ''} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder='+91-94xxxxxx99' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Email Address'>
-        <UCInput value={formData.email || ''} readOnly placeholder='your@email.com' />
+        <UCInput value={formData.email || ''} readOnly placeholder='your@email.com' isEditing={isEditing} />
         <p className='text-[11px] text-slate-400'>Email cannot be changed here.</p>
       </FieldWrapper>
     </div>
@@ -385,13 +426,13 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const renderMedicalSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Allergies'>
-        <UCTextarea value={formData.medicalHistory.allergies || ''} onChange={(e: any) => handleInputChange('medicalHistory.allergies', e.target.value)} rows={3} placeholder='List any known allergies...' />
+        <UCTextarea value={formData.medicalHistory.allergies || ''} onChange={(e) => handleInputChange('medicalHistory.allergies', e.target.value)} rows={3} placeholder='List any known allergies...' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Current Medications'>
-        <UCTextarea value={formData.medicalHistory.currentMedications || ''} onChange={(e: any) => handleInputChange('medicalHistory.currentMedications', e.target.value)} rows={3} placeholder='List current medications and dosage...' />
+        <UCTextarea value={formData.medicalHistory.currentMedications || ''} onChange={(e) => handleInputChange('medicalHistory.currentMedications', e.target.value)} rows={3} placeholder='List current medications and dosage...' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Chronic Conditions'>
-        <UCTextarea value={formData.medicalHistory.chronicConditions || ''} onChange={(e: any) => handleInputChange('medicalHistory.chronicConditions', e.target.value)} rows={3} placeholder='Any chronic or ongoing conditions...' />
+        <UCTextarea value={formData.medicalHistory.chronicConditions || ''} onChange={(e) => handleInputChange('medicalHistory.chronicConditions', e.target.value)} rows={3} placeholder='Any chronic or ongoing conditions...' isEditing={isEditing} />
       </FieldWrapper>
     </div>
   );
@@ -399,13 +440,13 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const renderEmergencySection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Contact Name'>
-        <UCInput value={formData.emergencyContact.name || ''} onChange={(e: any) => handleInputChange('emergencyContact.name', e.target.value)} placeholder='Full name' />
+        <UCInput value={formData.emergencyContact.name || ''} onChange={(e) => handleInputChange('emergencyContact.name', e.target.value)} placeholder='Full name' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Relationship'>
-        <UCInput value={formData.emergencyContact.relationship || ''} onChange={(e: any) => handleInputChange('emergencyContact.relationship', e.target.value)} placeholder='e.g. Spouse, Parent, Sibling' />
+        <UCInput value={formData.emergencyContact.relationship || ''} onChange={(e) => handleInputChange('emergencyContact.relationship', e.target.value)} placeholder='e.g. Spouse, Parent, Sibling' isEditing={isEditing} />
       </FieldWrapper>
       <FieldWrapper label='Phone Number'>
-        <UCInput value={formData.emergencyContact.phone || ''} onChange={(e: any) => handleInputChange('emergencyContact.phone', e.target.value)} placeholder='+91-xxxxxxxxxx' />
+        <UCInput value={formData.emergencyContact.phone || ''} onChange={(e) => handleInputChange('emergencyContact.phone', e.target.value)} placeholder='+91-xxxxxxxxxx' isEditing={isEditing} />
       </FieldWrapper>
     </div>
   );
@@ -523,16 +564,16 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                 </div>
 
                 <div className='flex items-center gap-2 flex-shrink-0'>
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={() => setIsEditing(false)}
-                        className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all duration-200 ${
-                          isDoctor ? 'border-slate-600 text-slate-400 hover:bg-slate-700' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
-                        }`}
-                      >
-                        Cancel
-                      </button>
+                   {isEditing ? (
+                     <>
+                       <button
+                         onClick={handleCancel}
+                         className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all duration-200 ${
+                           isDoctor ? 'border-slate-600 text-slate-400 hover:bg-slate-700' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
+                         }`}
+                       >
+                         Cancel
+                       </button>
                       <button
                         onClick={handleSave}
                         disabled={loading}
@@ -547,7 +588,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                     </>
                   ) : (
                     <button
-                      onClick={() => setIsEditing(true)}
+                      onClick={handleStartEdit}
                       className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-px ${
                         isDoctor
                           ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
@@ -604,7 +645,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                     </span>
                   )}
                 </div>
-                <div key={activeSection} className='section-animate px-8 py-8'>
+                <div className='section-animate px-8 py-8'>
                   {renderContent()}
                 </div>
               </div>

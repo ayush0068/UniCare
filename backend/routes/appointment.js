@@ -2,6 +2,7 @@ const express = require("express");
 const Appointment = require("../modal/Appointment");
 const Doctor = require("../modal/Doctor");
 const Parchi = require("../modal/Parchi");
+const Patient = require("../modal/Patient");
 const { authenticate, requireRole } = require("../middleware/auth");
 const { query, body } = require("express-validator");
 const validate = require("../middleware/validate");
@@ -10,6 +11,8 @@ const { bookingConfirmationTemplate } = require('../utils/emailTemplates');
 const { generatePrescriptionPdf } = require('../utils/prescriptionPdf');
 
 const router = express.Router();
+
+const GUEST_SURCHARGE = 30;
 
 // ── Helper: Determine discount based on parchi visitCount ──
 // Visit 1 → Full price (no parchi yet)
@@ -112,12 +115,17 @@ router.get("/check-discount/:doctorId", authenticate, requireRole("patient"), as
     const patientId = req.auth.id;
     const { slotDate } = req.query;
 
-    // Agar slotDate query mein hai to us date ke against check karo
-    // Warna aaj ki date se check karo
+    // ── Guest users get no discount ever ──
+    const patientDoc = await Patient.findById(patientId).select('isGuest');
+    if (patientDoc?.isGuest) {
+      return res.ok(
+        { discountType: 'none', parchiNumber: null, visitCount: 0, expiryDate: null },
+        "Guest users are not eligible for loyalty discounts"
+      );
+    }
+
     const checkDate = slotDate ? new Date(slotDate) : new Date();
 
-    // KEY FIX: parchi ki expiry slotDate se badi honi chahiye
-    // Agar 30 April ka slot hai aur parchi 23 April tak hai → null milega → full price
     const parchi = await Parchi.findOne({
       doctorId,
       patientId,
@@ -175,67 +183,91 @@ router.post("/book", authenticate, requireRole("patient"), [
         return res.forbidden("This time slot is already booked");
       }
 
-      // ── Parchi + Discount logic ──
       const patientId = req.auth.id;
       const slotDateObj = new Date(slotStartIso);
 
-      // KEY FIX: slot ki date ke against parchi check karo, aaj ki date ke against nahi
-      let parchi = await Parchi.findOne({
-        doctorId,
-        patientId,
-        isActive: true,
-        expiryDate: { $gt: slotDateObj },
-      });
+      // ── Fetch patient to check guest status ──
+      const patientDoc = await Patient.findById(patientId).select('isGuest guestAppointmentCount');
+      const isGuestUser = patientDoc?.isGuest;
 
-      const discountType = getDiscountType(parchi);
-      const doctor = await Doctor.findById(doctorId).select('fees');
-      const baseFee = doctor?.fees || consultationFees;
+      let finalConsultationFees, finalPlatformFees, finalTotalAmount, visitNumber, parchi;
 
-      let finalConsultationFees, finalPlatformFees, finalTotalAmount, visitNumber;
+      if (isGuestUser) {
+        // ── Guest: enforce 3-booking limit ──
+        if (patientDoc.guestAppointmentCount >= 3) {
+          return res.forbidden(
+            "Guest users can only book up to 3 appointments. Please create a free account to continue."
+          );
+        }
 
-      if (!parchi) {
-        // ── First visit ya 10 din baad — full price, nayi parchi banao ──
+        // ── Guest: no parchi, no discount, flat ₹30 surcharge ──
         finalConsultationFees = consultationFees;
         finalPlatformFees = platformFees;
-        finalTotalAmount = totalAmount;
+        finalTotalAmount = consultationFees + platformFees + GUEST_SURCHARGE;
         visitNumber = 1;
+        parchi = null;
 
-        // Parchi ki expiry slot date se 10 din baad
-        const expiry = new Date(slotDateObj);
-        expiry.setDate(expiry.getDate() + 10);
-
-        parchi = new Parchi({
-          doctorId,
-          patientId,
-          firstVisitDate: slotDateObj,
-          expiryDate: expiry,
-          visitCount: 1,
-          isActive: true,
+        // Increment guest booking count
+        await Patient.findByIdAndUpdate(patientId, {
+          $inc: { guestAppointmentCount: 1 },
         });
-        await parchi.save();
 
       } else {
-        // ── Follow-up visit — same parchi, discount apply karo ──
-        visitNumber = parchi.visitCount + 1;
+        // ── Registered patient: full parchi + discount logic ──
+        parchi = await Parchi.findOne({
+          doctorId,
+          patientId,
+          isActive: true,
+          expiryDate: { $gt: slotDateObj },
+        });
 
-        if (discountType === 'free') {
-          finalConsultationFees = 0;
-          finalPlatformFees = 0;
-          finalTotalAmount = 0;
-        } else if (discountType === 'half') {
-          finalConsultationFees = Math.ceil(baseFee / 2);
-          finalPlatformFees = Math.round(finalConsultationFees * 0.1);
-          finalTotalAmount = finalConsultationFees + finalPlatformFees;
-        } else {
+        const discountType = getDiscountType(parchi);
+        const doctor = await Doctor.findById(doctorId).select('fees');
+        const baseFee = doctor?.fees || consultationFees;
+
+        if (!parchi) {
+          // ── First visit or 10 days baad — full price, new parchi ──
           finalConsultationFees = consultationFees;
           finalPlatformFees = platformFees;
           finalTotalAmount = totalAmount;
-        }
+          visitNumber = 1;
 
-        parchi.visitCount += 1;
-        await parchi.save();
+          const expiry = new Date(slotDateObj);
+          expiry.setDate(expiry.getDate() + 10);
+
+          parchi = new Parchi({
+            doctorId,
+            patientId,
+            firstVisitDate: slotDateObj,
+            expiryDate: expiry,
+            visitCount: 1,
+            isActive: true,
+          });
+          await parchi.save();
+
+        } else {
+          // ── Follow-up visit — apply discount ──
+          visitNumber = parchi.visitCount + 1;
+
+          if (discountType === 'free') {
+            finalConsultationFees = 0;
+            finalPlatformFees = 0;
+            finalTotalAmount = 0;
+          } else if (discountType === 'half') {
+            finalConsultationFees = Math.ceil(baseFee / 2);
+            finalPlatformFees = Math.round(finalConsultationFees * 0.1);
+            finalTotalAmount = finalConsultationFees + finalPlatformFees;
+          } else {
+            finalConsultationFees = consultationFees;
+            finalPlatformFees = platformFees;
+            finalTotalAmount = totalAmount;
+          }
+
+          parchi.visitCount += 1;
+          await parchi.save();
+        }
       }
-      // ── End parchi logic ──
+      // ── End guest/parchi logic ──
 
       const zegoRoomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -254,7 +286,7 @@ router.post("/book", authenticate, requireRole("patient"), [
         totalAmount: finalTotalAmount,
         paymentStatus: "Pending",
         payoutStatus: "Pending",
-        parchiId: parchi._id,
+        parchiId: parchi ? parchi._id : null,
         visitNumber,
       });
 
@@ -264,7 +296,13 @@ router.post("/book", authenticate, requireRole("patient"), [
       await appointment.populate("patientId", "name email");
 
       res.created(
-        { ...appointment.toObject(), parchiNumber: parchi.parchiNumber, parchiExpiry: parchi.expiryDate },
+        {
+          ...appointment.toObject(),
+          parchiNumber: parchi?.parchiNumber || null,
+          parchiExpiry: parchi?.expiryDate || null,
+          isGuest: isGuestUser,
+          guestSurcharge: isGuestUser ? GUEST_SURCHARGE : 0,
+        },
         "Appointment booked successfully"
       );
 

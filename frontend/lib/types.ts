@@ -34,12 +34,15 @@ export interface DoctorFormData {
 // ✅ Enhanced User Interface
 export interface User {
   id: string;
+  ucId: string;
   name: string;
   email: string;
   type: "doctor" | "patient";
   phone?: string;
   profileImage?: string;
-  isVerified:boolean
+  isVerified: boolean;
+  isGuest?: boolean;
+  guestAppointmentCount?: number;
 
   // Patient fields
   dob?: string;
@@ -87,6 +90,7 @@ export interface User {
 // interfaces/Doctor.ts
 export interface Doctor {
   _id: string;
+  ucId: string;
   name: string;
   email: string;
   specialization: string;

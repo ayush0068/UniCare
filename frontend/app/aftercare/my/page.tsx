@@ -3,15 +3,12 @@
 /**
  * /aftercare/my/page.tsx  (UniCare)
  *
- * FIX: Reads userId from URL query param ?uid= (passed by HelpLink's
- * AftercareButton) instead of localStorage. This is reliable — localStorage
- * written by HelpLink on one port is not guaranteed to be read by UniCare
- * on another port before this page renders.
- *
- * URL example: /aftercare/my?uid=6801234abcdef
+ * FIX: Wrapped the inner component that uses useSearchParams() in a
+ * React Suspense boundary. Next.js requires this for any page that uses
+ * useSearchParams — without it the build fails with a prerender error.
  */
-export const dynamic = 'force-dynamic';
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
 interface AftercareCase {
@@ -41,14 +38,11 @@ const formatDate = (iso: string) =>
     hour: "2-digit", minute: "2-digit",
   });
 
-// const API_BASE = "http://localhost:8000/api"
-const API_BASE = 'https://unicare-in47.onrender.com/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-export default function MyAftercarePage() {
+// ── Inner component — uses useSearchParams, must be inside Suspense ───────────
+function MyAftercareContent() {
   const searchParams = useSearchParams();
-
-  // ✅ FIX: Read userId from URL query param ?uid=
-  // HelpLink passes it directly in the redirect URL — no localStorage needed.
   const userId = searchParams?.get("uid") || "";
 
   const [cases,   setCases]   = useState<AftercareCase[]>([]);
@@ -59,13 +53,12 @@ export default function MyAftercarePage() {
     const fetchCases = async () => {
       try {
         if (!userId) {
-          // No userId in URL — show access denied, not all cases
           setError("No user session found. Please go back to HelpLink and try again.");
           setLoading(false);
           return;
         }
 
-        const res  = await fetch(`${API_BASE}/aftercare/my`, {
+        const res = await fetch(`${API_BASE}/aftercare/my`, {
           headers: { "x-user-id": userId },
         });
 
@@ -88,7 +81,6 @@ export default function MyAftercarePage() {
     fetchCases();
   }, [userId]);
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div style={s.centered}>
@@ -100,7 +92,6 @@ export default function MyAftercarePage() {
     );
   }
 
-  // ── Error / no session ────────────────────────────────────────────────────
   if (error) {
     return (
       <div style={s.centered}>
@@ -112,7 +103,6 @@ export default function MyAftercarePage() {
     );
   }
 
-  // ── Empty ─────────────────────────────────────────────────────────────────
   if (cases.length === 0) {
     return (
       <div style={s.centered}>
@@ -124,7 +114,6 @@ export default function MyAftercarePage() {
     );
   }
 
-  // ── Cases list ────────────────────────────────────────────────────────────
   return (
     <div style={s.page}>
       <div style={s.header}>
@@ -142,7 +131,6 @@ export default function MyAftercarePage() {
           const badge = STATUS_STYLES[c.status] ?? { bg: "#f3f4f6", color: "#374151" };
           return (
             <div key={c._id} style={s.card}>
-
               <div style={s.cardHeader}>
                 <div style={s.avatar}>{(c.name?.[0] ?? "?").toUpperCase()}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -226,6 +214,26 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ── Loading fallback shown during Suspense ────────────────────────────────────
+function LoadingFallback() {
+  return (
+    <div style={s.centered}>
+      <div style={s.spinner} />
+      <p style={{ color: "#9ca3af", fontSize: "0.8rem" }}>Loading…</p>
+    </div>
+  );
+}
+
+// ── Page export — wraps content in Suspense ───────────────────────────────────
+export default function MyAftercarePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <MyAftercareContent />
+    </Suspense>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
   page:       { minHeight:"100vh", background:"#f8fafc", padding:"2rem 1.25rem", fontFamily:"var(--font-sans,system-ui,sans-serif)" },
   centered:   { minHeight:"100vh", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"0.75rem", fontFamily:"system-ui,sans-serif" },

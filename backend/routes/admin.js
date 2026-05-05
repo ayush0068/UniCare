@@ -46,6 +46,7 @@ const Admin = require('../modal/Admin');
 const Doctor = require('../modal/Doctor');
 const Patient = require('../modal/Patient');
 const Appointment = require('../modal/Appointment');
+const Notification = require('../modal/Notification');
 
 const { authenticateAdmin, requireSuperAdmin, requirePermission } = require('../middleware/adminAuth');
 
@@ -490,6 +491,21 @@ router.put(
             user.isActive = !user.isActive;
             await user.save();
             res.ok(user, `User ${user.isActive ? 'activated' : 'deactivated'}`);
+
+            setImmediate(async () => {
+                try {
+                    await Notification.create({
+                        recipientId:   user._id,
+                        recipientType: 'patient',
+                        type:    user.isActive ? 'account_activated' : 'account_deactivated',
+                        title:   user.isActive ? 'Account Activated' : 'Account Deactivated',
+                        message: user.isActive
+                            ? 'Your UniCare account has been reactivated. You can now book appointments.'
+                            : 'Your UniCare account has been deactivated by an administrator. Please contact support@unicare.com for assistance.',
+                        link: user.isActive ? '/patient/dashboard' : '',
+                    });
+                } catch (e) { console.error('Notification error:', e.message); }
+            });
         } catch (err) {
             res.serverError('Failed to toggle user status', [err.message]);
         }
@@ -589,11 +605,25 @@ router.put(
             if (!doctor) return res.notFound('Doctor not found');
 
             doctor.isVerified = !doctor.isVerified;
-            // An unverified doctor cannot be active
             if (!doctor.isVerified) doctor.isActive = false;
 
             await doctor.save();
             res.ok(doctor, `Doctor ${doctor.isVerified ? 'verified' : 'unverified'}`);
+
+            setImmediate(async () => {
+                try {
+                    await Notification.create({
+                        recipientId:   doctor._id,
+                        recipientType: 'doctor',
+                        type:    doctor.isVerified ? 'verification_approved' : 'verification_rejected',
+                        title:   doctor.isVerified ? '🎉 Verification Approved!' : 'Verification Revoked',
+                        message: doctor.isVerified
+                            ? 'Congratulations! Your medical credentials have been verified by the UniCare team. Your profile is now live and visible to patients. You can start accepting appointments.'
+                            : 'Your verification status has been revoked by an administrator. Your profile is no longer visible to patients. Please contact support for more information.',
+                        link: doctor.isVerified ? '/doctor/dashboard' : '/doctor/profile',
+                    });
+                } catch (e) { console.error('Notification error:', e.message); }
+            });
         } catch (err) {
             res.serverError('Failed to verify doctor', [err.message]);
         }
@@ -613,7 +643,6 @@ router.put(
             const doctor = await Doctor.findById(req.params.id).select('-password -googleId');
             if (!doctor) return res.notFound('Doctor not found');
 
-            // Guard: cannot activate unverified doctor
             if (!doctor.isActive && !doctor.isVerified) {
                 return res.badRequest('Doctor must be verified before being activated');
             }
@@ -621,6 +650,21 @@ router.put(
             doctor.isActive = !doctor.isActive;
             await doctor.save();
             res.ok(doctor, `Doctor ${doctor.isActive ? 'activated' : 'deactivated'}`);
+
+            setImmediate(async () => {
+                try {
+                    await Notification.create({
+                        recipientId:   doctor._id,
+                        recipientType: 'doctor',
+                        type:    doctor.isActive ? 'account_activated' : 'account_deactivated',
+                        title:   doctor.isActive ? 'Account Activated' : 'Account Deactivated',
+                        message: doctor.isActive
+                            ? 'Your UniCare account has been activated. You are now visible to patients and can receive appointment bookings.'
+                            : 'Your UniCare account has been deactivated by an administrator. You will not receive new appointments until reactivated.',
+                        link: doctor.isActive ? '/doctor/dashboard' : '',
+                    });
+                } catch (e) { console.error('Notification error:', e.message); }
+            });
         } catch (err) {
             res.serverError('Failed to toggle doctor status', [err.message]);
         }

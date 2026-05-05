@@ -2,13 +2,14 @@
 
 import { healthcareCategories, specializations } from '@/lib/constant';
 import { userAuthStore } from '@/store/authStore';
-import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Stethoscope, User, X } from 'lucide-react';
+import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Shield, Stethoscope, Upload, User, X, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import Header from '../landing/Header';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
+import { postWithAuth, deleteWithAuth, getWithAuth } from '@/service/httpService';
 
 interface ProfileProps {
   userType: 'doctor' | 'patient';
@@ -73,6 +74,249 @@ const UCTextarea = ({ value, onChange, rows = 4, placeholder = '', isEditing = t
   />
 );
 
+// ── Document types a doctor can upload ──
+const DOCUMENT_TYPES = [
+  'Medical Degree (MBBS/MD/MS)',
+  'Medical Registration Certificate',
+  'Aadhaar / Government ID',
+  'Specialization Certificate',
+  'Hospital Affiliation Letter',
+];
+
+// ── Verification Documents Panel ──────────────────────────────
+const VerificationDocumentsPanel = ({ isVerified }: { isVerified: boolean }) => {
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchDocuments = async () => {
+    try {
+      const res = await getWithAuth('/doctor/verification/documents');
+      if (res.success) setDocuments(res.data.documents || []);
+    } catch (e) { /* silent */ }
+  };
+
+  useEffect(() => { fetchDocuments(); }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File size must be under 5 MB');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp', 'application/pdf'].includes(file.type)) {
+      setUploadError('Only JPG, PNG, WebP, and PDF files are allowed');
+      return;
+    }
+    setUploadError('');
+    setSelectedFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedType || !selectedFile) {
+      setUploadError('Please select a document type and file');
+      return;
+    }
+    setUploading(true);
+    setUploadError('');
+    try {
+      // Convert file to base64 dataURL
+      const fileData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(selectedFile);
+      });
+
+      const res = await postWithAuth('/doctor/verification/upload-document', {
+        documentType: selectedType,
+        fileData,
+        fileName: selectedFile.name,
+      });
+
+      if (res.success) {
+        await fetchDocuments();
+        setSelectedType('');
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    } catch (e: any) {
+      setUploadError(e.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (docId: string) => {
+    try {
+      await deleteWithAuth(`/doctor/verification/document/${docId}`);
+      await fetchDocuments();
+    } catch (e: any) {
+      setUploadError(e.message || 'Delete failed');
+    }
+  };
+
+  return (
+    <div className='space-y-6'>
+      {/* ── Status banner ── */}
+      <div className={`flex items-start gap-4 p-5 rounded-2xl border ${
+        isVerified
+          ? 'bg-emerald-50 border-emerald-100'
+          : 'bg-amber-50 border-amber-100'
+      }`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          isVerified ? 'bg-emerald-500' : 'bg-amber-500'
+        }`}>
+          {isVerified
+            ? <CheckCircle2 className='w-5 h-5 text-white' />
+            : <AlertTriangle className='w-5 h-5 text-white' />
+          }
+        </div>
+        <div>
+          <p className={`text-sm font-bold ${isVerified ? 'text-emerald-800' : 'text-amber-800'}`}>
+            {isVerified ? 'Your profile is verified ✅' : 'Verification Pending'}
+          </p>
+          <p className={`text-xs mt-1 leading-relaxed ${isVerified ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {isVerified
+              ? 'You are verified and visible to patients. You can continue to upload updated documents if needed.'
+              : 'Upload your medical credentials below. An admin will review and verify your profile. Until verified, you will not appear in patient searches.'
+            }
+          </p>
+        </div>
+      </div>
+
+      {/* ── Uploaded documents list ── */}
+      {documents.length > 0 && (
+        <div>
+          <p className='text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3'>Uploaded Documents ({documents.length})</p>
+          <div className='space-y-2'>
+            {documents.map((doc) => (
+              <div key={doc._id} className='flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl'>
+                <div className='flex items-center gap-3'>
+                  <div className='w-9 h-9 bg-sky-100 rounded-xl flex items-center justify-center flex-shrink-0'>
+                    <FileText className='w-4 h-4 text-sky-600' />
+                  </div>
+                  <div>
+                    <p className='text-sm font-semibold text-slate-800'>{doc.type}</p>
+                    <p className='text-xs text-slate-400 mt-0.5'>
+                      Uploaded {doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg'>
+                    ✓ Uploaded
+                  </span>
+                  <button
+                    onClick={() => handleDelete(doc._id)}
+                    className='w-8 h-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors'
+                  >
+                    <Trash2 className='w-3.5 h-3.5' />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Upload new document ── */}
+      <div>
+        <p className='text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3'>Upload New Document</p>
+        <div className='space-y-4 p-5 bg-white border border-slate-200 rounded-2xl'>
+          {/* Document type selector */}
+          <div>
+            <label className='text-xs font-semibold text-slate-600 mb-2 block'>Document Type *</label>
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className='rounded-xl border-slate-200 text-sm font-medium bg-white'>
+                <SelectValue placeholder='Select document type' />
+              </SelectTrigger>
+              <SelectContent className='rounded-2xl border-slate-100 shadow-xl'>
+                {DOCUMENT_TYPES.map((t) => (
+                  <SelectItem key={t} value={t} className='rounded-xl text-sm'>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* File picker */}
+          <div>
+            <label className='text-xs font-semibold text-slate-600 mb-2 block'>File *</label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative flex flex-col items-center justify-center gap-2 p-6 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200 ${
+                selectedFile
+                  ? 'border-sky-300 bg-sky-50/50'
+                  : 'border-slate-200 bg-slate-50 hover:border-sky-300 hover:bg-sky-50/30'
+              }`}
+            >
+              {selectedFile ? (
+                <>
+                  <div className='w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center'>
+                    <FileText className='w-5 h-5 text-sky-600' />
+                  </div>
+                  <p className='text-sm font-semibold text-sky-700 text-center truncate max-w-xs'>{selectedFile.name}</p>
+                  <p className='text-xs text-slate-400'>{(selectedFile.size / 1024).toFixed(1)} KB — click to change</p>
+                </>
+              ) : (
+                <>
+                  <div className='w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center'>
+                    <Upload className='w-5 h-5 text-slate-400' />
+                  </div>
+                  <p className='text-sm font-semibold text-slate-600'>Click to upload</p>
+                  <p className='text-xs text-slate-400'>JPG, PNG, PDF up to 5 MB</p>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                type='file'
+                accept='image/jpeg,image/png,image/webp,application/pdf'
+                onChange={handleFileChange}
+                className='hidden'
+              />
+            </div>
+          </div>
+
+          {/* Error */}
+          {uploadError && (
+            <p className='text-xs text-red-600 font-medium bg-red-50 border border-red-100 px-4 py-2.5 rounded-xl'>
+              {uploadError}
+            </p>
+          )}
+
+          {/* Upload button */}
+          <button
+            onClick={handleUpload}
+            disabled={!selectedType || !selectedFile || uploading}
+            className='w-full flex items-center justify-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-200 disabled:text-slate-400 text-white font-semibold text-sm py-3 px-5 rounded-2xl transition-all duration-200 disabled:cursor-not-allowed'
+          >
+            {uploading ? (
+              <>
+                <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className='w-4 h-4' />
+                Upload Document
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <p className='text-[11px] text-slate-400 leading-relaxed'>
+        Documents are reviewed by UniCare+ admins within 1–2 business days. You will be notified once your profile is verified.
+      </p>
+    </div>
+  );
+};
+
+
 const ProfilePage = ({ userType }: ProfileProps) => {
   const { user, fetchProfile, updateProfile, loading } = userAuthStore();
   const [activeSection, setActiveSection] = useState('about');
@@ -115,13 +359,11 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   }, [user, isEditing]);
 
   const handleStartEdit = () => {
-    // Store current form data as original before editing
     originalFormDataRef.current = { ...formData };
     setIsEditing(true);
   };
 
   const handleCancel = () => {
-    // Restore original data
     if (originalFormDataRef.current) {
       setFormData(originalFormDataRef.current);
     }
@@ -190,6 +432,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         { id: 'professional', label: 'Professional Info', icon: Stethoscope },
         { id: 'hospital', label: 'Hospital / Clinic', icon: MapPin },
         { id: 'availability', label: 'Availability', icon: Clock },
+        { id: 'verification', label: 'Verification Docs', icon: Shield },
       ]
     : [
         { id: 'about', label: 'Personal Info', icon: User },
@@ -198,7 +441,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         { id: 'emergency', label: 'Emergency Contact', icon: Heart },
       ];
 
-   /* ─── Section renderers ─── */
+  /* ─── Section renderers ─── */
   const renderAboutSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Full Name'>
@@ -457,6 +700,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
       case 'professional': return renderProfessionalSection();
       case 'hospital': return renderHospitalSection();
       case 'availability': return renderAvailabilitySection();
+      case 'verification': return <VerificationDocumentsPanel isVerified={user?.isVerified || false} />;
       case 'contact': return renderContactSection();
       case 'medical': return renderMedicalSection();
       case 'emergency': return renderEmergencySection();
@@ -465,6 +709,8 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   };
 
   const currentSectionLabel = sidebarItems.find(i => i.id === activeSection)?.label || '';
+  // Hide Edit/Save buttons on the verification section — it has its own controls
+  const isVerificationSection = activeSection === 'verification';
 
   if (!user) return (
     <div className='min-h-screen bg-[#F8F7F4] flex items-center justify-center'>
@@ -494,17 +740,13 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         }
         .section-animate { animation: section-fade 0.35s cubic-bezier(0.16,1,0.3,1) both; }
 
-        .nav-item {
-          transition: all 0.18s ease;
-        }
+        .nav-item { transition: all 0.18s ease; }
         .nav-item:hover:not(.nav-active) {
           background: rgba(14,165,233,0.06);
           color: #0284c7;
         }
 
-        .save-btn {
-          transition: all 0.2s cubic-bezier(0.16,1,0.3,1);
-        }
+        .save-btn { transition: all 0.2s cubic-bezier(0.16,1,0.3,1); }
         .save-btn:not(:disabled):hover {
           transform: translateY(-1px);
           box-shadow: 0 8px 20px rgba(14,165,233,0.25);
@@ -523,7 +765,6 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                 ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-sky-900'
                 : 'bg-gradient-to-br from-sky-50 to-blue-50 border border-sky-100'
             }`}>
-              {/* texture */}
               <div className='absolute inset-0 opacity-[0.05]' style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
 
               <div className='relative z-10 px-8 py-8 flex flex-col sm:flex-row items-start sm:items-center gap-6'>
@@ -560,45 +801,55 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                       {isDoctor ? <Stethoscope className='w-3 h-3' /> : <User className='w-3 h-3' />}
                       {isDoctor ? 'Medical Professional' : 'Patient'}
                     </span>
+                    {/* Verification status badge for doctor */}
+                    {isDoctor && !user?.isVerified && (
+                      <span className='inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/20'>
+                        <AlertTriangle className='w-3 h-3' />
+                        Pending Verification
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className='flex items-center gap-2 flex-shrink-0'>
-                   {isEditing ? (
-                     <>
-                       <button
-                         onClick={handleCancel}
-                         className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all duration-200 ${
-                           isDoctor ? 'border-slate-600 text-slate-400 hover:bg-slate-700' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
-                         }`}
-                       >
-                         Cancel
-                       </button>
+                {/* Hide edit button on verification section */}
+                {!isVerificationSection && (
+                  <div className='flex items-center gap-2 flex-shrink-0'>
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={handleCancel}
+                          className={`text-sm font-semibold px-4 py-2.5 rounded-xl border transition-all duration-200 ${
+                            isDoctor ? 'border-slate-600 text-slate-400 hover:bg-slate-700' : 'border-slate-200 text-slate-600 bg-white hover:bg-slate-50'
+                          }`}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleSave}
+                          disabled={loading}
+                          className='save-btn flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                        >
+                          {loading ? (
+                            <><div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />Saving...</>
+                          ) : (
+                            <><Save className='w-4 h-4' />Save Changes</>
+                          )}
+                        </button>
+                      </>
+                    ) : (
                       <button
-                        onClick={handleSave}
-                        disabled={loading}
-                        className='save-btn flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white shadow-md shadow-sky-500/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                        onClick={handleStartEdit}
+                        className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-px ${
+                          isDoctor
+                            ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                            : 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-200'
+                        }`}
                       >
-                        {loading ? (
-                          <><div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />Saving...</>
-                        ) : (
-                          <><Save className='w-4 h-4' />Save Changes</>
-                        )}
+                        Edit Profile
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={handleStartEdit}
-                      className={`text-sm font-bold px-5 py-2.5 rounded-xl transition-all duration-200 hover:-translate-y-px ${
-                        isDoctor
-                          ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-                          : 'bg-sky-500 hover:bg-sky-600 text-white shadow-md shadow-sky-200'
-                      }`}
-                    >
-                      Edit Profile
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -624,6 +875,10 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                         <item.icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                       </div>
                       {item.label}
+                      {/* Dot indicator on verification if unverified */}
+                      {item.id === 'verification' && isDoctor && !user?.isVerified && (
+                        <span className='ml-auto w-2 h-2 bg-amber-400 rounded-full flex-shrink-0' />
+                      )}
                     </button>
                   );
                 })}
@@ -638,7 +893,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
                     </p>
                     <h2 className='uc-serif text-xl font-bold text-slate-900'>{currentSectionLabel}</h2>
                   </div>
-                  {isEditing && (
+                  {isEditing && !isVerificationSection && (
                     <span className='flex items-center gap-1.5 text-[11px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-3 py-1.5 rounded-xl'>
                       <div className='w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse' />
                       Editing Mode

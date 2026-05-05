@@ -1,88 +1,103 @@
 require('dotenv').config();
 require('./modal/Parchi');
-const express = require('express')
-const mongoose = require('mongoose')
-const helmet = require('helmet')
-const morgan = require('morgan')
-const cors = require('cors')
-const bodyParser = require('body-parser')
-const response = require('./middleware/response');
-require('./config/passport'); // Passport configuration
+
+const express    = require('express');
+const mongoose   = require('mongoose');
+const helmet     = require('helmet');
+const morgan     = require('morgan');
+const cors       = require('cors');
+const bodyParser = require('body-parser');
+
+const response   = require('./middleware/response');
+require('./config/passport');
 const passportLib = require('passport');
+
 const { startReminderScheduler } = require('./utils/reminderScheduler');
-const aiAssistantRoutes = require('./routes/aiAssistant');
+const aiAssistantRoutes          = require('./routes/aiAssistant');
 
+// ✅ Aftercare Bridge — HelpLink → UniCare
+const aftercareRoutes = require('./routes/aftercare');
 
+const app  = express();
+const PORT = process.env.PORT || 8000;
 
-const app = express();
-
-
-
-//Helmet for security of express app (It is a security middleware for express apps that helps to secure the app by setting various HTTP headers)
-
+// ── Security & logging ────────────────────────────────────────────────────────
 app.use(helmet());
+app.use(morgan('dev'));
 
-
-//Morgan for logging HTTP requests logger middleware(It is a middleware that logs HTTP requests and errors)
-
-app.use(morgan('dev'))
+// ── CORS ──────────────────────────────────────────────────────────────────────
 app.use(cors({
-    origin: (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean) || '*',
-
-    credentials: true
+  origin:      (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean) || '*',
+  credentials: true,
 }));
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// ── Body parsing (20 mb limit from current server) ───────────────────────────
+app.use(bodyParser.json({ limit: '20mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '20mb' }));
 
-//used response
+// ── Custom response helpers & passport ───────────────────────────────────────
 app.use(response);
-
-//Initialze passport
 app.use(passportLib.initialize());
 
+// ── DB readiness guard ────────────────────────────────────────────────────────
+// Blocks requests until MongoDB is fully connected.
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message: 'Database connection is not ready. Please try again shortly.',
+    });
+  }
+  next();
+});
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
-}).then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => res.ok({
+  time:     new Date().toISOString(),
+  database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+}, 'OK'));
 
+// ── Existing routes (unchanged) ───────────────────────────────────────────────
+app.use('/api/auth',         require('./routes/auth'));
+app.use('/api/doctor',       require('./routes/doctor'));
+app.use('/api/patient',      require('./routes/patient'));
+app.use('/api/appointment',  require('./routes/appointment'));
+app.use('/api/payment',      require('./routes/payment'));
+app.use('/api/ai',           aiAssistantRoutes);
+app.use('/api/admin',        require('./routes/admin'));
+app.use('/api/notification', require('./routes/notification'));
 
-startReminderScheduler();
+// ✅ Aftercare Bridge routes — public, verified by x-api-key header
+// Exposes: POST /api/aftercare, GET /api/aftercare,
+//          GET  /api/aftercare/my, GET /api/aftercare/by-request/:requestId,
+//          GET  /api/aftercare/:id
+app.use('/api', aftercareRoutes);
 
-
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/doctor', require('./routes/doctor'));
-app.use('/api/patient', require('./routes/patient'));
-app.use('/api/appointment', require('./routes/appointment'));
-app.use('/api/payment', require('./routes/payment'))
-
-app.use('/api/ai', aiAssistantRoutes);
-
-app.use('/api/admin', require('./routes/admin'));
-
-
-app.get('/health', (req, res) => res.ok({ time: new Date().toISOString() }, 'OK')
-);
-
-
-
-
-
-// Global error handler
+// ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
-  console.error("❌ Global Error:", err);
+  console.error('❌ Global Error:', err);
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || "Internal Server Error",
-    stack: err.stack
+    message: err.message || 'Internal Server Error',
+    stack:   err.stack,
   });
 });
 
+// ── Start server (async — waits for MongoDB before accepting traffic) ─────────
+const startServer = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+    });
+    console.log('MongoDB connected');
 
-console.log('EMAIL_USER:', process.env.EMAIL_USER);
-console.log('EMAIL_PASS:', process.env.EMAIL_PASS ? 'SET' : 'NOT SET');
+    startReminderScheduler();
 
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  } catch (err) {
+    console.error('MongoDB connection error:', err);
+    process.exit(1);
+  }
+};
 
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+startServer();

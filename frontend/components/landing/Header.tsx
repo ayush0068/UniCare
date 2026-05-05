@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { Calendar, ChevronDown, LogOut, Menu, Shield, Stethoscope, User, X } from 'lucide-react';
+import { Calendar, ChevronDown, FileText, LogOut, Menu, Shield, Stethoscope, User, X } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import React, { useEffect, useState } from 'react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
+import NotificationBell from './NotificationBell';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { userAuthStore } from '@/store/authStore';
 import { useAdminStore } from '@/lib/admin/store';
@@ -57,6 +58,27 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
     { label: 'How It Works', href: '/#how-it-works' },
     { label: 'About', href: '/about' },
   ];
+
+  // ── Dropdown items per role ──
+  const getProfileDropdownItems = () => {
+    if (!user) return [];
+    if (user.type === 'patient') {
+      return [
+        { href: '/patient/profile',    icon: User,      label: 'My Profile' },
+        { href: '/patient/dashboard',  icon: Calendar,  label: 'My Appointments' },
+        { href: '/patient/dashboard?tab=reports', icon: FileText, label: 'Prescriptions & AI Reports' },
+      ];
+    }
+    if (user.type === 'doctor') {
+      return [
+        { href: '/doctor/profile',       icon: User,     label: 'My Profile' },
+        { href: '/doctor/appointments',  icon: Calendar, label: 'My Appointments' },
+      ];
+    }
+    return [];
+  };
+
+  const dropdownItems = getProfileDropdownItems();
 
   return (
     <>
@@ -158,6 +180,8 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
             {/* ─── Right Side ───────────────────────────── */}
             <div className='flex items-center gap-2 flex-shrink-0 z-10'>
               {isAuthenticated ? (
+                <>
+                <NotificationBell />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button className='flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-slate-50 transition-colors duration-200 group border border-transparent hover:border-slate-200'>
@@ -174,7 +198,7 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                       <ChevronDown className='w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-200 group-data-[state=open]:rotate-180 hidden md:block' />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align='end' className='w-56 rounded-2xl border border-slate-100 shadow-2xl shadow-slate-200/60 p-1.5 mt-2 bg-white'>
+                  <DropdownMenuContent align='end' className='w-60 rounded-2xl border border-slate-100 shadow-2xl shadow-slate-200/60 p-1.5 mt-2 bg-white'>
                     <DropdownMenuLabel className='px-3 py-2.5'>
                       <div className='flex items-center gap-3'>
                         <Avatar className='w-10 h-10 ring-2 ring-sky-50'>
@@ -189,15 +213,24 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                         </div>
                       </div>
                     </DropdownMenuLabel>
+
                     <DropdownMenuSeparator className='bg-slate-100 my-1' />
-                    <DropdownMenuItem asChild>
-                      <Link href={`/${user?.type}/profile`} className='flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-[13px] font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors'>
-                        <div className='w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center'>
-                          <User className='w-3.5 h-3.5 text-slate-500' />
-                        </div>
-                        My Profile
-                      </Link>
-                    </DropdownMenuItem>
+
+                    {/* ── Dynamic dropdown items per role ── */}
+                    {dropdownItems.map((item, i) => (
+                      <DropdownMenuItem key={i} asChild>
+                        <Link
+                          href={item.href}
+                          className='flex items-center gap-2.5 px-3 py-2.5 rounded-xl cursor-pointer text-[13px] font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors'
+                        >
+                          <div className='w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0'>
+                            <item.icon className='w-3.5 h-3.5 text-slate-500' />
+                          </div>
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+
                     <DropdownMenuSeparator className='bg-slate-100 my-1' />
                     <DropdownMenuItem
                       onClick={handleLogout}
@@ -210,6 +243,7 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                </>
                ) : (
                  <>
                    <Link href='/login/patient' className='hidden md:block'>
@@ -223,17 +257,12 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                      </button>
                    </Link>
 
-                   {/* Modern Admin Login Button */}
                    {!adminToken && (
                      <Link href='/admin-login' className='hidden md:block'>
                        <button className='group relative ml-1 overflow-hidden rounded-xl px-4 py-2 text-[13px] font-semibold transition-all duration-300 hover:scale-105 active:scale-95 admin-btn'>
-                         {/* Gradient background */}
                          <span className='absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 opacity-95 transition-opacity group-hover:opacity-100' />
-                         {/* Shine effect */}
                          <span className='absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out' />
-                         {/* Glow */}
                          <span className='absolute -inset-1 rounded-xl bg-gradient-to-r from-sky-500/30 to-indigo-500/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity duration-300' />
-                         {/* Content */}
                          <span className='relative flex items-center gap-2 text-white'>
                            <Shield className='w-3.5 h-3.5' />
                            <span>Admin</span>
@@ -283,7 +312,6 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
                      </button>
                    </Link>
 
-                   {/* Admin button in mobile menu */}
                    {!adminToken && (
                      <Link href='/admin-login' onClick={() => setMobileOpen(false)}>
                        <button className='group w-full flex items-center justify-center gap-2 text-sm font-semibold bg-gradient-to-r from-slate-700 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-slate-200/50 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] admin-btn'>

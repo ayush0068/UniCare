@@ -61,6 +61,35 @@ const CustomAlert = ({ alert, onClose }: { alert: AlertState; onClose: () => voi
 }
 
 /* ═══════════════════════════════════════════════ */
+
+/* ─── Verification Banner component ─── */
+const VerificationBanner = ({ user, dashboardData }: { user: any; dashboardData: any }) => {
+  const [dismissed, setDismissed] = useState(false)
+  const isVerified = dashboardData?.doctor?.isVerified ?? user?.isVerified
+  const wasJustVerified = isVerified && !dismissed
+
+  // Show "pending" banner if not verified, "congrats" if verified (dismiss once)
+  if (dismissed) return null
+  if (!isVerified) {
+    return (
+      <div className="fixed top-[56px] left-0 right-0 z-40 flex items-center gap-3 px-4 py-3 bg-amber-50 border-b border-amber-200 shadow-sm">
+        <div className="w-6 h-6 rounded-lg bg-amber-500 flex items-center justify-center flex-shrink-0">
+          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+        </div>
+        <p className="text-[13px] font-semibold text-amber-800 flex-1">
+          ⏳ Your account is pending verification. Please <a href="/doctor/profile?section=verification" className="underline font-bold hover:text-amber-900">upload your documents</a> and wait for admin approval before you can receive appointments.
+        </p>
+        <button onClick={() => setDismissed(true)} className="w-6 h-6 rounded-lg hover:bg-amber-200 flex items-center justify-center text-amber-600 transition-colors">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    )
+  }
+  return null
+}
+
 const DoctorDashboardContent = () => {
   const searchParams = useSearchParams()
   const { user } = userAuthStore()
@@ -155,6 +184,7 @@ const DoctorDashboardContent = () => {
 
       <Header showDashboardNav />
       <CustomAlert alert={customAlert} onClose={closeAlert} />
+      <VerificationBanner user={user} dashboardData={dashboardData} />
 
       <div className='uc-font min-h-screen bg-[#F8F7F4] pt-16'>
 

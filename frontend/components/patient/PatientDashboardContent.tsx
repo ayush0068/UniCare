@@ -1,5 +1,3 @@
-'use client'
-
 import React, { useEffect, useState } from 'react'
 import Header from '../landing/Header'
 import { userAuthStore } from '@/store/authStore'
@@ -21,10 +19,10 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
 const PatientDashboardContent = () => {
   const { user } = userAuthStore();
   const { appointments, fetchAppointments, loading } = useAppointmentStore();
-  const [activeTab, setActiveTab] = useState('upcoming');
-  const [tabCounts, setTabCounts] = useState({ upcoming: 0, past: 0 });
+   const [activeTab, setActiveTab] = useState('upcoming');
+   const [tabCounts, setTabCounts] = useState({ upcoming: 0, past: 0 });
 
-  useEffect(() => {
+   useEffect(() => {
     if (user?.type === 'patient' && activeTab !== 'reports') {
       fetchAppointments('patient', activeTab);
     }

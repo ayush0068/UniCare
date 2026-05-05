@@ -9,6 +9,8 @@ import {
   Sparkles, Zap, Brain,
 } from 'lucide-react'
 import { userAuthStore } from '@/store/authStore'
+import { useAppointmentStore } from '@/store/appointmentStore'
+import { usePathname } from 'next/navigation'
 import { httpService } from '@/service/httpService'
 
 /* ─── Types ─── */
@@ -154,12 +156,13 @@ const renderText = (text: string) => {
 /* ═══════════════════════════════════════════════ */
 const AIAssistantButton = () => {
   const { user, isAuthenticated } = userAuthStore()
+  const { currentAppointment } = useAppointmentStore()
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [isListening, setIsListening] = useState(false)
-  /* FIX: mute is instant — we cancel speech immediately on toggle */
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [voicePersona, setVoicePersona] = useState<VoicePersona>('default')
   const [language, setLanguage] = useState<'en' | 'hi'>('en')
@@ -168,6 +171,11 @@ const AIAssistantButton = () => {
   const [isTyping, setIsTyping] = useState(false)
   const [pulse, setPulse] = useState(true)
   const [sessionId, setSessionId] = useState<string | null>(null)
+
+  // Hide AI assistant during active calls
+  const isOnCallPage = pathname?.includes('/call/')
+  const isCallActive = currentAppointment?.status === 'In Progress'
+  const shouldHide = isOnCallPage || isCallActive
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -204,7 +212,7 @@ const AIAssistantButton = () => {
     }, 500)
   }, [isOpen, isAuthenticated, user, language, hasGreeted, messages.length])
 
-  if (!isAuthenticated || !user) return null
+  if (!isAuthenticated || !user || shouldHide) return null
 
   const userType: string = (user as any).userType || (user as any).type || 'patient'
   const firstName = user.name?.split(' ')[0] || 'there'
@@ -278,27 +286,55 @@ const AIAssistantButton = () => {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-        .ai-font { font-family:'DM Sans',system-ui,sans-serif; }
-        .ai-scrollbar::-webkit-scrollbar { width:4px; }
-        .ai-scrollbar::-webkit-scrollbar-track { background:transparent; }
-        .ai-scrollbar::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:4px; }
-        .ai-scrollbar::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
-      `}</style>
+       <style>{`
+         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+         .ai-font { font-family:'DM Sans',system-ui,sans-serif; }
+         .ai-scrollbar::-webkit-scrollbar { width:4px; }
+         .ai-scrollbar::-webkit-scrollbar-track { background:transparent; }
+         .ai-scrollbar::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.12); border-radius:4px; }
+         .ai-scrollbar::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,0.2); }
 
-      <div className='ai-font' style={{ position:'fixed', bottom:24, right:24, zIndex:9999 }}>
+         @media (max-width: 480px) {
+           .ai-chat-window {
+             width: calc(100vw - 24px) !important;
+             height: calc(100vh - 100px) !important;
+             bottom: 12px !important;
+             right: 12px !important;
+             left: 12px !important;
+             border-radius: 20px !important;
+           }
+           .ai-fab {
+             padding: 10px 14px !important;
+           }
+           .ai-fab-label {
+             font-size: 11px !important;
+           }
+           .ai-fab-icon {
+             width: 26px !important;
+             height: 26px !important;
+           }
+         }
+       `}</style>
 
-        {/* ─── FAB button ─── */}
-        <AnimatePresence>
-          {!isOpen && (
-            <motion.div
-              initial={{ scale:0, opacity:0, y:20 }}
-              animate={{ scale:1, opacity:1, y:0 }}
-              exit={{ scale:0, opacity:0, y:20 }}
-              transition={{ type:'spring', stiffness:300, damping:22 }}
-              style={{ position:'relative' }}
-            >
+       <div className='ai-font' style={{
+         position:'fixed',
+         bottom:24,
+         right:24,
+         zIndex:9999,
+         ['--ai-chat-width' as any]: '420px',
+         ['--ai-chat-height' as any]: '660px',
+       }}>
+
+         {/* ─── FAB button ─── */}
+         <AnimatePresence>
+           {!isOpen && (
+             <motion.div
+               initial={{ scale:0, opacity:0, y:20 }}
+               animate={{ scale:1, opacity:1, y:0 }}
+               exit={{ scale:0, opacity:0, y:20 }}
+               transition={{ type:'spring', stiffness:300, damping:22 }}
+               style={{ position:'relative' }}
+             >
               {/* Pulse rings */}
               {pulse && [0,1].map(i => (
                 <motion.div key={i}
@@ -308,19 +344,23 @@ const AIAssistantButton = () => {
                 />
               ))}
 
-              {/* Main FAB */}
-              <motion.button
-                onClick={() => setIsOpen(true)}
-                whileHover={{ scale:1.05 }} whileTap={{ scale:0.95 }}
-                style={{
-                  display:'flex', alignItems:'center', gap:10,
-                  background:'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%)',
-                  border:'1px solid rgba(14,165,233,0.3)',
-                  borderRadius:20, padding:'12px 20px',
-                  cursor:'pointer',
-                  boxShadow:'0 8px 32px rgba(14,165,233,0.25), 0 0 0 1px rgba(14,165,233,0.1) inset',
-                }}
-              >
+               {/* Main FAB */}
+               <motion.button
+                 onClick={() => setIsOpen(true)}
+                 whileHover={{ scale:1.05 }} whileTap={{ scale:0.95 }}
+                 className='ai-fab'
+                 style={{
+                   display:'flex',
+                   alignItems:'center',
+                   gap:10,
+                   background:'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0c4a6e 100%)',
+                   border:'1px solid rgba(14,165,233,0.3)',
+                   borderRadius:20,
+                   padding:'12px 20px',
+                   cursor:'pointer',
+                   boxShadow:'0 8px 32px rgba(14,165,233,0.25), 0 0 0 1px rgba(14,165,233,0.1) inset',
+                 }}
+               >
                 {/* Animated icon cluster */}
                 <div style={{ position:'relative', width:32, height:32, flexShrink:0 }}>
                   <motion.div
@@ -343,17 +383,17 @@ const AIAssistantButton = () => {
                   />
                 </div>
 
-                {/* Label */}
-                <div style={{ textAlign:'left' }}>
-                  <p style={{ color:'white', fontWeight:700, fontSize:13, margin:0, letterSpacing:0.3, lineHeight:1 }}>
-                    {userType === 'doctor' ? 'Clinical AI' : 'Health AI'}
-                  </p>
-                  <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:3 }}>
-                    <motion.div animate={{ opacity:[1,0.5,1] }} transition={{ duration:1.5, repeat:Infinity }}
-                      style={{ width:5, height:5, borderRadius:'50%', background:'#4ade80' }} />
-                    <p style={{ color:'rgba(56,189,248,0.8)', fontSize:10, margin:0, fontWeight:500 }}>Online · Ask anything</p>
-                  </div>
-                </div>
+                 {/* Label */}
+                 <div className='ai-fab-label' style={{ textAlign:'left' }}>
+                   <p style={{ color:'white', fontWeight:700, fontSize:13, margin:0, letterSpacing:0.3, lineHeight:1 }}>
+                     {userType === 'doctor' ? 'Clinical AI' : 'Health AI'}
+                   </p>
+                   <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:3 }}>
+                     <motion.div animate={{ opacity:[1,0.5,1] }} transition={{ duration:1.5, repeat:Infinity }}
+                       style={{ width:5, height:5, borderRadius:'50%', background:'#4ade80' }} />
+                     <p style={{ color:'rgba(56,189,248,0.8)', fontSize:10, margin:0, fontWeight:500 }}>Online · Ask anything</p>
+                   </div>
+                 </div>
 
                 {/* Sparkle accent */}
                 <motion.div animate={{ rotate:[0,15,-15,0], scale:[1,1.1,1] }} transition={{ duration:3, repeat:Infinity }}
@@ -379,26 +419,35 @@ const AIAssistantButton = () => {
           )}
         </AnimatePresence>
 
-        {/* ─── Chat window ─── */}
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              key='chat'
-              initial={{ opacity:0, scale:0.88, y:36 }}
-              animate={{ opacity:1, scale:1, y:0 }}
-              exit={{ opacity:0, scale:0.88, y:36 }}
-              transition={{ type:'spring', stiffness:310, damping:28 }}
-              onClick={e => e.stopPropagation()}
-              style={{
-                position:'fixed', bottom:20, right:20, zIndex:9999,
-                width:420, height:660,
-                background:'linear-gradient(160deg, #0f172a 0%, #111827 40%, #0c1628 100%)',
-                borderRadius:24,
-                boxShadow:'0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.12)',
-                display:'flex', flexDirection:'column', overflow:'hidden',
-                border:'1px solid rgba(56,189,248,0.12)',
-              }}
-            >
+         {/* ─── Chat window ─── */}
+         <AnimatePresence>
+           {isOpen && (
+             <motion.div
+               key='chat'
+               initial={{ opacity:0, scale:0.88, y:36 }}
+               animate={{ opacity:1, scale:1, y:0 }}
+               exit={{ opacity:0, scale:0.88, y:36 }}
+               transition={{ type:'spring', stiffness:310, damping:28 }}
+               onClick={e => e.stopPropagation()}
+               className='ai-chat-window'
+               style={{
+                 position:'fixed',
+                 bottom:20,
+                 right:20,
+                 zIndex:9999,
+                 width:'var(--ai-chat-width, 420px)',
+                 height:'var(--ai-chat-height, 660px)',
+                 maxWidth: 'calc(100vw - 24px)',
+                 maxHeight: 'calc(100vh - 100px)',
+                 background:'linear-gradient(160deg, #0f172a 0%, #111827 40%, #0c1628 100%)',
+                 borderRadius:24,
+                 boxShadow:'0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.12)',
+                 display:'flex',
+                 flexDirection:'column',
+                 overflow:'hidden',
+                 border:'1px solid rgba(56,189,248,0.12)',
+               }}
+             >
               {/* Ambient glow */}
               <div style={{ position:'absolute', top:-40, right:-40, width:200, height:200, borderRadius:'50%', background:'rgba(14,165,233,0.06)', pointerEvents:'none', filter:'blur(40px)' }} />
               <div style={{ position:'absolute', bottom:-40, left:-20, width:160, height:160, borderRadius:'50%', background:'rgba(124,58,237,0.05)', pointerEvents:'none', filter:'blur(30px)' }} />

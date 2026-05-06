@@ -65,8 +65,8 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
     if (user.type === 'patient') {
       return [
         { href: '/patient/profile',    icon: User,      label: 'My Profile' },
-        { href: '/patient/dashboard',  icon: Calendar,  label: 'My Appointments' },
-        { href: '/patient/dashboard?tab=reports', icon: FileText, label: 'Prescriptions & AI Reports' },
+        { href: '/patient/dashboard',  icon: Calendar,  label: 'Dashboard' },
+        
       ];
     }
     if (user.type === 'doctor') {

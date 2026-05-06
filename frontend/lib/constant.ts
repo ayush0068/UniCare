@@ -160,35 +160,35 @@ export const specializations = [
 
 
     export const footerSections = [
-    {
-      title: "Company",
-      links: [
-        { text: "About Us", href: "/about" },
-        { text: "Support Center", href: "/support" },
-        { text: "Contact Us", href: "/contact" }
-      ]
-    },
-    {
-      title: "For Healthcare",
-      links: [
-        { text: "Join as Doctor", href: "/signup/doctor" },
-        { text: "Doctor Resources", href: "/doctor-resources" },
-      ]
-    },
-    {
-      title: "For Patients",
-      links: [
-        { text: "Find Doctors", href: "/doctors" },
-        { text: "Book Appointment", href: "/signup/patient" },
-      ]
-    },
-    {
-      title: "Legal",
-      links: [
-        { text: "Privacy Policy", href: "/privacy" },
-        { text: "Terms of Service", href: "/terms" },
-      ]
-    }
+    // {
+    //   title: "Company",
+    //   links: [
+    //     { text: "About Us", href: "/about" },
+    //     { text: "Support Center", href: "/support" },
+    //     { text: "Contact Us", href: "/contact" }
+    //   ]
+    // },
+    // {
+    //   title: "For Healthcare",
+    //   links: [
+    //     { text: "Join as Doctor", href: "/signup/doctor" },
+    //     { text: "Doctor Resources", href: "/doctor-resources" },
+    //   ]
+    // },
+    // {
+    //   title: "For Patients",
+    //   links: [
+    //     { text: "Find Doctors", href: "/doctors" },
+    //     { text: "Book Appointment", href: "/signup/patient" },
+    //   ]
+    // },
+    // {
+    //   title: "Legal",
+    //   links: [
+    //     { text: "Privacy Policy", href: "/privacy" },
+    //     { text: "Terms of Service", href: "/terms" },
+    //   ]
+    // }
   ];
 
 

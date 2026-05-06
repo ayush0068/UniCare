@@ -1,31 +1,16 @@
 "use client";
 
 /**
- * app/onboarding/helplink/page.tsx
+ * app/onboarding/helplink/page.tsx  — UPDATED
  *
- * Entry point for users coming from HelpLink via the "Continue to Aftercare"
- * button. This page handles the conditional onboarding flow:
- *
- *   CASE 1 (registered user)  — email present in URL params
- *     → Calls POST /api/helplink/transfer
- *     → Gets JWT back, stores in localStorage
- *     → Redirects to /patient/dashboard
- *
- *   CASE 2 (guest user)  — no email, guestId may be present
- *     → Same API call, gets JWT + temporary credentials
- *     → Shows credentials screen before redirecting to dashboard
- *
- * URL params (from HelpLink AftercareButton):
- *   ?uid=<helplinkUserId>          (registered flow)
- *   ?guestId=<helplinkGuestId>     (guest flow)
- *   &requestId=<helplinkRequestId> (both flows)
- *   &email=<encodedEmail>          (registered flow only)
- *   &name=<encodedName>            (both)
- *   &incident=<type>               (both)
- *   &summary=<text>                (both)
- *
- * HelpLink's AftercareButton.jsx will need a small update to point to
- * this page (see HelpLink patch file).
+ * CHANGES vs previous version:
+ *   1. After transfer API call, shows a full "Recovery Account" screen with:
+ *      - Aftercare incident summary (type, severity, summary, notes)
+ *      - Credentials (email + password=123456) for NEW registered AND guest accounts
+ *      - "Consult Now" button → goes to dashboard
+ *      - "Copy Credentials" buttons
+ *   2. For EXISTING accounts: shows a simpler welcome-back screen + Consult Now.
+ *   3. Loading and Error screens unchanged.
  */
 
 import { useEffect, useState, useCallback, Suspense } from "react";
@@ -38,30 +23,69 @@ const API_BASE =
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
+interface Credentials {
+  email:    string;
+  password: string;
+}
+
+interface AftercaseDoc {
+  _id:          string;
+  incidentType: string;
+  severity:     string;
+  summary:      string;
+  helperNotes:  string;
+  notes:        string;
+  status:       string;
+  time:         string;
+  userNote:     string;
+}
+
 interface TransferResponse {
-  success:     boolean;
-  accountType: "existing" | "new_registered" | "guest";
-  token:       string;
-  patientId:   string;
-  name:        string;
-  isGuest:     boolean;
-  credentials?: {
-    email:    string;
-    password: string;
-  };
-  message?: string;
+  success:      boolean;
+  accountType:  "existing" | "new_registered" | "guest";
+  token:        string;
+  patientId:    string;
+  name:         string;
+  isGuest:      boolean;
+  credentials?: Credentials;
+  aftercareCase?: AftercaseDoc | null;
+  message?:     string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Credential Screen — shown once to guests before dashboard redirect
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function GuestCredentialsScreen({
+const SEVERITY_COLORS: Record<string, { bg: string; color: string }> = {
+  high:    { bg: "#fee2e2", color: "#991b1b" },
+  medium:  { bg: "#fef3c7", color: "#92400e" },
+  low:     { bg: "#d1fae5", color: "#065f46" },
+  unknown: { bg: "#f3f4f6", color: "#374151" },
+};
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleString("en-IN", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recovery Account Screen — shown after successful transfer
+// ─────────────────────────────────────────────────────────────────────────────
+
+function RecoveryAccountScreen({
+  accountType,
+  name,
   credentials,
-  onContinue,
+  aftercareCase,
+  onConsultNow,
 }: {
-  credentials: { email: string; password: string };
-  onContinue:  () => void;
+  accountType:   "existing" | "new_registered" | "guest";
+  name:          string;
+  credentials?:  Credentials | null;
+  aftercareCase?: AftercaseDoc | null;
+  onConsultNow:  () => void;
 }) {
   const [copied, setCopied] = useState<"email" | "password" | null>(null);
 
@@ -72,69 +96,158 @@ function GuestCredentialsScreen({
     });
   };
 
+  const severityStyle = SEVERITY_COLORS[aftercareCase?.severity?.toLowerCase() ?? "unknown"]
+    ?? SEVERITY_COLORS.unknown;
+
+  const isNew = accountType === "new_registered" || accountType === "guest";
+
   return (
     <div style={s.overlay}>
       <div style={s.card}>
+
         {/* Badge */}
-        <div style={{ marginBottom: "0.9rem" }}>
-          <span style={s.badge}>Temporary Access</span>
+        <div style={{ marginBottom: "0.9rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <span style={s.badge}>
+            {accountType === "guest" ? "🔑 Guest Recovery" : accountType === "existing" ? "✅ Welcome Back" : "💚 New Account"}
+          </span>
         </div>
 
         {/* Title */}
-        <h2 style={s.title}>Your Recovery Account</h2>
+        <h2 style={s.title}>
+          {accountType === "existing"
+            ? <>Your account is <span style={{ color: "#15803d", fontStyle: "italic" }}>ready.</span></>
+            : <>Your recovery account <span style={{ color: "#15803d", fontStyle: "italic" }}>is set up.</span></>
+          }
+        </h2>
         <p style={s.subtitle}>
-          Save these credentials — you can use them anytime to access your
-          UniCare+ recovery dashboard.
+          Hi <strong>{name}</strong>. Your emergency data from HelpLink has been transferred to UniCare+.
         </p>
 
-        {/* Credentials box */}
-        <div style={s.credBox}>
-          {/* Email row */}
-          <div style={s.credRow}>
-            <div>
-              <p style={s.credLabel}>Email</p>
-              <p style={s.credValue}>{credentials.email}</p>
+        {/* ── Credentials section (new accounts only) ──────────────────── */}
+        {isNew && credentials && (
+          <>
+            <p style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9ca3af", margin: "0 0 0.5rem" }}>
+              Your Login Credentials
+            </p>
+            <div style={s.credBox}>
+              <div style={s.credRow}>
+                <div>
+                  <p style={s.credLabel}>Email</p>
+                  <p style={s.credValue}>{credentials.email}</p>
+                </div>
+                <button style={s.copyBtn} onClick={() => copy(credentials.email, "email")}>
+                  {copied === "email" ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
+              <div style={s.credDivider} />
+              <div style={s.credRow}>
+                <div>
+                  <p style={s.credLabel}>Default Password</p>
+                  <p style={{ ...s.credValue, fontFamily: "monospace", letterSpacing: "0.15em" }}>
+                    {credentials.password}
+                  </p>
+                </div>
+                <button style={s.copyBtn} onClick={() => copy(credentials.password, "password")}>
+                  {copied === "password" ? "✓ Copied" : "Copy"}
+                </button>
+              </div>
             </div>
-            <button style={s.copyBtn} onClick={() => copy(credentials.email, "email")}>
-              {copied === "email" ? "✓ Copied" : "Copy"}
-            </button>
-          </div>
 
-          <div style={s.credDivider} />
-
-          {/* Password row */}
-          <div style={s.credRow}>
-            <div>
-              <p style={s.credLabel}>Password</p>
-              <p style={{ ...s.credValue, fontFamily: "monospace", letterSpacing: "0.15em" }}>
-                {credentials.password}
+            <div style={s.warning}>
+              <span style={{ fontSize: "1rem" }}>🔒</span>
+              <p style={{ margin: 0, fontSize: "0.7rem", color: "#92400e", lineHeight: 1.5 }}>
+                Save these credentials — they won't be shown again. Change your password from your profile after logging in.
               </p>
             </div>
-            <button style={s.copyBtn} onClick={() => copy(credentials.password, "password")}>
-              {copied === "password" ? "✓ Copied" : "Copy"}
-            </button>
+          </>
+        )}
+
+        {/* ── Aftercare Case Summary ────────────────────────────────────── */}
+        {aftercareCase && (
+          <div style={s.caseCard}>
+            <p style={s.sectionLabel}>📋 Incident Summary</p>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem 1rem", marginBottom: "0.75rem" }}>
+              <div>
+                <p style={s.detailLabel}>Incident Type</p>
+                <p style={s.detailValue}>{aftercareCase.incidentType || "—"}</p>
+              </div>
+              <div>
+                <p style={s.detailLabel}>Severity</p>
+                <span style={{
+                  display: "inline-block",
+                  padding: "2px 10px", borderRadius: 999,
+                  fontSize: "0.7rem", fontWeight: 700,
+                  background: severityStyle.bg, color: severityStyle.color,
+                  textTransform: "capitalize",
+                }}>
+                  {aftercareCase.severity || "unknown"}
+                </span>
+              </div>
+              {aftercareCase.time && (
+                <div>
+                  <p style={s.detailLabel}>Time of Incident</p>
+                  <p style={s.detailValue}>{formatDate(aftercareCase.time)}</p>
+                </div>
+              )}
+              <div>
+                <p style={s.detailLabel}>Recovery Status</p>
+                <p style={{ ...s.detailValue, textTransform: "capitalize" }}>{aftercareCase.status || "pending"}</p>
+              </div>
+            </div>
+
+            {aftercareCase.summary && (
+              <div style={{ marginBottom: "0.65rem" }}>
+                <p style={s.detailLabel}>Summary</p>
+                <p style={{ ...s.detailValue, lineHeight: 1.6 }}>{aftercareCase.summary}</p>
+              </div>
+            )}
+
+            {aftercareCase.notes && (
+              <div style={{ marginBottom: "0.65rem" }}>
+                <p style={s.detailLabel}>Incident Notes</p>
+                <p style={{ ...s.detailValue, lineHeight: 1.6 }}>{aftercareCase.notes}</p>
+              </div>
+            )}
+
+            {aftercareCase.helperNotes && (
+              <div style={{ marginBottom: "0.65rem" }}>
+                <p style={s.detailLabel}>Responder Notes</p>
+                <p style={{ ...s.detailValue, lineHeight: 1.6, color: "#1e40af" }}>
+                  {aftercareCase.helperNotes}
+                </p>
+              </div>
+            )}
+
+            {aftercareCase.userNote && (
+              <div style={{ background: "#f0fdf4", borderRadius: 10, padding: "0.55rem 0.75rem", border: "1px solid rgba(74,222,128,0.25)" }}>
+                <p style={{ ...s.detailLabel, color: "#15803d", margin: "0 0 0.2rem" }}>Your Note</p>
+                <p style={{ ...s.detailValue, margin: 0 }}>{aftercareCase.userNote}</p>
+              </div>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Warning */}
-        <div style={s.warning}>
-          <span style={{ fontSize: "1rem" }}>🔒</span>
-          <p style={{ margin: 0, fontSize: "0.72rem", color: "#92400e", lineHeight: 1.5 }}>
-            These credentials will not be shown again. Please save them now.
-          </p>
-        </div>
-
-        {/* CTA */}
-        <button style={s.continueBtn} onClick={onContinue}>
-          Continue to Dashboard →
+        {/* ── Consult Now CTA ─────────────────────────────────────────── */}
+        <button style={s.consultBtn} onClick={onConsultNow}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+            style={{ flexShrink: 0 }}>
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 11.5a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 .82h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16l.92.92z"/>
+          </svg>
+          Consult Now — Go to Dashboard
         </button>
+
+        <p style={{ fontSize: "0.65rem", color: "#a8a29e", textAlign: "center", margin: "0.75rem 0 0" }}>
+          You can book a doctor consultation from your dashboard at any time.
+        </p>
       </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Loading Screen
+// Loading + Error screens (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function LoadingScreen({ message }: { message: string }) {
@@ -142,17 +255,11 @@ function LoadingScreen({ message }: { message: string }) {
     <div style={s.overlay}>
       <div style={{ textAlign: "center" }}>
         <div style={s.spinner} />
-        <p style={{ color: "#78716c", fontSize: "0.9rem", marginTop: "1rem" }}>
-          {message}
-        </p>
+        <p style={{ color: "#78716c", fontSize: "0.9rem", marginTop: "1rem" }}>{message}</p>
       </div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Error Screen
-// ─────────────────────────────────────────────────────────────────────────────
 
 function ErrorScreen({ message }: { message: string }) {
   return (
@@ -161,7 +268,7 @@ function ErrorScreen({ message }: { message: string }) {
         <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>⚠️</div>
         <h2 style={{ ...s.title, fontSize: "1.2rem" }}>Something went wrong</h2>
         <p style={{ ...s.subtitle, marginBottom: "1.5rem" }}>{message}</p>
-        <a href="/" style={{ ...s.continueBtn, display: "inline-block", textDecoration: "none" }}>
+        <a href="/" style={{ ...s.consultBtn, display: "inline-block", textDecoration: "none" }}>
           Return to Home
         </a>
       </div>
@@ -170,17 +277,22 @@ function ErrorScreen({ message }: { message: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main inner component (uses useSearchParams — must be inside Suspense)
+// Main inner component
 // ─────────────────────────────────────────────────────────────────────────────
 
 function HelpLinkOnboardingContent() {
   const searchParams = useSearchParams();
   const router       = useRouter();
 
-  const [stage, setStage]             = useState<"loading" | "credentials" | "error">("loading");
-  const [loadingMsg, setLoadingMsg]   = useState("Setting up your recovery account…");
-  const [errorMsg, setErrorMsg]       = useState("");
-  const [guestCreds, setGuestCreds]   = useState<{ email: string; password: string } | null>(null);
+  const [stage,        setStage]        = useState<"loading" | "account" | "error">("loading");
+  const [loadingMsg,   setLoadingMsg]   = useState("Setting up your recovery account…");
+  const [errorMsg,     setErrorMsg]     = useState("");
+  const [transferData, setTransferData] = useState<{
+    accountType:   TransferResponse["accountType"];
+    name:          string;
+    credentials?:  Credentials | null;
+    aftercareCase?: AftercaseDoc | null;
+  } | null>(null);
 
   const performTransfer = useCallback(async () => {
     try {
@@ -191,13 +303,15 @@ function HelpLinkOnboardingContent() {
       const summary   = searchParams?.get("summary")   || "";
 
       const payload = {
-        email:         email ? decodeURIComponent(email) : null,
-        name:          decodeURIComponent(name),
+        email:        email ? decodeURIComponent(email) : null,
+        name:         decodeURIComponent(name),
         requestId,
-        incidentType:  decodeURIComponent(incident),
-        summary:       decodeURIComponent(summary),
-        timestamp:     new Date().toISOString(),
+        incidentType: decodeURIComponent(incident),
+        summary:      decodeURIComponent(summary),
+        timestamp:    new Date().toISOString(),
       };
+
+      setLoadingMsg("Connecting to UniCare+ servers…");
 
       const res = await fetch(`${API_BASE}/helplink/transfer`, {
         method:  "POST",
@@ -217,37 +331,41 @@ function HelpLinkOnboardingContent() {
       }
 
       // Store JWT in localStorage (same key used by existing UniCare auth)
-      localStorage.setItem("token",   data.token);
-      localStorage.setItem("userId",  data.patientId);
-      localStorage.setItem("userType","patient");
+      localStorage.setItem("token",    data.token);
+      localStorage.setItem("userId",   data.patientId);
+      localStorage.setItem("userType", "patient");
 
-      if (data.isGuest && data.credentials) {
-        // Guest: show credentials screen first
-        setGuestCreds(data.credentials);
-        setStage("credentials");
-      } else {
-        // Registered: redirect immediately
-        router.replace("/patient/dashboard");
-      }
+      setTransferData({
+        accountType:   data.accountType,
+        name:          data.name,
+        credentials:   data.credentials ?? null,
+        aftercareCase: data.aftercareCase ?? null,
+      });
+      setStage("account");
 
     } catch (err: unknown) {
       console.error("[HelpLinkOnboarding] error:", err);
       setErrorMsg("Unable to connect to UniCare+. Please try again later.");
       setStage("error");
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   useEffect(() => {
     performTransfer();
   }, [performTransfer]);
 
-  if (stage === "loading") return <LoadingScreen message={loadingMsg} />;
-  if (stage === "error")   return <ErrorScreen message={errorMsg} />;
-  if (stage === "credentials" && guestCreds) {
+  const goToDashboard = () => router.replace("/patient/dashboard");
+
+  if (stage === "loading")  return <LoadingScreen message={loadingMsg} />;
+  if (stage === "error")    return <ErrorScreen message={errorMsg} />;
+  if (stage === "account" && transferData) {
     return (
-      <GuestCredentialsScreen
-        credentials={guestCreds}
-        onContinue={() => router.replace("/patient/dashboard")}
+      <RecoveryAccountScreen
+        accountType={transferData.accountType}
+        name={transferData.name}
+        credentials={transferData.credentials}
+        aftercareCase={transferData.aftercareCase}
+        onConsultNow={goToDashboard}
       />
     );
   }
@@ -255,8 +373,7 @@ function HelpLinkOnboardingContent() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Page export (wraps inner component in Suspense — required by Next.js for
-// any page using useSearchParams)
+// Page export
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function HelpLinkOnboardingPage() {
@@ -268,7 +385,7 @@ export default function HelpLinkOnboardingPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Inline styles (healthcare minimal, matches UniCare dashboard palette)
+// Styles
 // ─────────────────────────────────────────────────────────────────────────────
 
 const s: Record<string, React.CSSProperties> = {
@@ -285,7 +402,7 @@ const s: Record<string, React.CSSProperties> = {
     background:   "#ffffff",
     borderRadius: "24px",
     padding:      "2.25rem",
-    maxWidth:     "480px",
+    maxWidth:     "520px",
     width:        "100%",
     boxShadow:    "0 4px 40px rgba(0,0,0,0.09)",
     border:       "1px solid rgba(0,0,0,0.06)",
@@ -313,17 +430,17 @@ const s: Record<string, React.CSSProperties> = {
     margin:        "0.5rem 0 0.35rem",
   },
   subtitle: {
-    fontSize:   "0.82rem",
-    color:      "#78716c",
-    lineHeight: 1.65,
-    marginBottom: "1.5rem",
+    fontSize:     "0.82rem",
+    color:        "#78716c",
+    lineHeight:   1.65,
+    marginBottom: "1.25rem",
   },
   credBox: {
     background:   "#f9fafb",
     border:       "1px solid rgba(0,0,0,0.08)",
     borderRadius: "16px",
     padding:      "1.25rem",
-    marginBottom: "1rem",
+    marginBottom: "0.85rem",
   },
   credRow: {
     display:        "flex",
@@ -339,7 +456,7 @@ const s: Record<string, React.CSSProperties> = {
     margin:        "0 0 2px",
   },
   credValue: {
-    fontSize:   "0.9rem",
+    fontSize:  "0.9rem",
     fontWeight: 600,
     color:      "#1c1917",
     margin:     0,
@@ -371,16 +488,48 @@ const s: Record<string, React.CSSProperties> = {
     border:       "1px solid #fde68a",
     borderRadius: "12px",
     padding:      "0.85rem",
-    marginBottom: "1.5rem",
+    marginBottom: "1.25rem",
   },
-  continueBtn: {
-    display:       "block",
+  caseCard: {
+    background:    "#f8fafc",
+    border:        "1px solid rgba(0,0,0,0.07)",
+    borderRadius:  "16px",
+    padding:       "1.1rem 1.2rem",
+    marginBottom:  "1.25rem",
+  },
+  sectionLabel: {
+    fontSize:      "0.68rem",
+    fontWeight:    700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    color:         "#64748b",
+    margin:        "0 0 0.75rem",
+  },
+  detailLabel: {
+    fontSize:      "0.62rem",
+    fontWeight:    700,
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.08em",
+    color:         "#94a3b8",
+    margin:        "0 0 2px",
+  },
+  detailValue: {
+    fontSize:  "0.82rem",
+    color:     "#334155",
+    margin:    "2px 0 0",
+    wordBreak: "break-word" as const,
+  },
+  consultBtn: {
+    display:       "flex",
+    alignItems:    "center",
+    justifyContent:"center",
+    gap:           "0.6rem",
     width:         "100%",
     padding:       "14px 0",
     borderRadius:  "100px",
     background:    "linear-gradient(135deg, #15803d, #16a34a)",
     color:         "#fff",
-    fontSize:      "0.85rem",
+    fontSize:      "0.88rem",
     fontWeight:    700,
     textAlign:     "center" as const,
     textTransform: "uppercase" as const,
@@ -388,14 +537,15 @@ const s: Record<string, React.CSSProperties> = {
     border:        "none",
     cursor:        "pointer",
     boxShadow:     "0 4px 20px rgba(21,128,61,0.3)",
+    transition:    "transform 0.15s, box-shadow 0.15s",
   },
   spinner: {
-    width:       "36px",
-    height:      "36px",
-    border:      "3px solid rgba(21,128,61,0.15)",
-    borderTop:   "3px solid #15803d",
-    borderRadius:"50%",
-    animation:   "spin 0.85s linear infinite",
-    margin:      "0 auto",
+    width:        "36px",
+    height:       "36px",
+    border:       "3px solid rgba(21,128,61,0.15)",
+    borderTop:    "3px solid #15803d",
+    borderRadius: "50%",
+    animation:    "spin 0.85s linear infinite",
+    margin:       "0 auto",
   },
 };

@@ -1,27 +1,27 @@
 /**
- * controllers/helplinkTransferController.js
+ * controllers/helplinkTransferController.js  — UPDATED
  *
- * Handles conditional onboarding when HelpLink transfers a user to UniCare+.
+ * CHANGES vs previous version:
+ *   1. Default password is now "123456" (instead of a random 8-char string)
+ *      for BOTH registered and guest accounts created via HelpLink transfer.
+ *      Password is shown to the user once in the UI via the `credentials` field.
+ *   2. Returns `credentials: { email, password }` for BOTH new_registered AND
+ *      guest account types (so the frontend can show the Consult Now modal with
+ *      credentials for both flows).
+ *   3. Stores full incident data (severity, summary, helperNotes) on the
+ *      AftercareCase and also links it back by patientId after account creation.
+ *   4. Returns the aftercareCase data in the response so the frontend can
+ *      display a summary report inline before the user proceeds to the dashboard.
  *
- * Two cases:
- *   CASE 1 — Registered HelpLink user  → payload.email is a real email
- *   CASE 2 — Guest HelpLink user       → payload.email is null / missing
- *
- * POST /api/helplink/transfer
- *   Body: HelpLink transfer payload (see transferPayloadSchema in validation)
- *   Returns: { token, accountType, credentials? (guest only), patientId }
- *
- * Security:
- *   - Protected by x-api-key matching process.env.AFTERCARE_SECRET
- *   - Passwords are hashed with bcrypt (12 rounds)
- *   - Guest emails are unique-guaranteed via collision retry
- *   - No duplicate accounts for the same real email
+ * SECURITY NOTE:
+ *   "123456" is intentionally weak — it is shown to the user ONCE and they
+ *   are expected to change it from their profile. The account is also marked
+ *   isVerified:true (trusted source = HelpLink) so no email verification loop.
  */
 
-const bcrypt      = require('bcryptjs');
-const jwt         = require('jsonwebtoken');
-const crypto      = require('crypto');
-const Patient     = require('../modal/Patient');
+const bcrypt        = require('bcryptjs');
+const jwt           = require('jsonwebtoken');
+const Patient       = require('../modal/Patient');
 const AftercareCase = require('../modal/AftercareCase');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,17 +31,12 @@ const AftercareCase = require('../modal/AftercareCase');
 const signToken = (id) =>
   jwt.sign({ id, type: 'patient' }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-/**
- * Generate a random 8-character uppercase alphanumeric password.
- * e.g. "X7KQ92LM"
- */
-const generateTempPassword = () =>
-  crypto.randomBytes(6).toString('base64').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8).padEnd(8, 'X');
+/** Default password for all HelpLink-transferred accounts */
+const DEFAULT_PASSWORD = '123456';
 
 /**
- * Generate a unique guest email in the format:
- *   guest_NNNNN@guest.unicare.app
- * Retries up to 5 times if there's a collision.
+ * Generate a unique guest email: guest_NNNNN@guest.unicare.app
+ * Retries up to 5 times on collision.
  */
 const generateGuestEmail = async () => {
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -50,25 +45,35 @@ const generateGuestEmail = async () => {
     const exists = await Patient.findOne({ email }).lean();
     if (!exists) return email;
   }
-  // Fallback to timestamp-based email (extremely unlikely to collide)
   return `guest_${Date.now()}@guest.unicare.app`;
 };
 
 /**
  * Attach recovery data from HelpLink to an AftercareCase record, linking
- * the newly obtained UniCare patientId to any existing unlinked case.
- *
- * This is non-blocking — failure won't break the login flow.
+ * the newly obtained UniCare patientId. Also enriches the case with full
+ * incident data (severity, summary, helperNotes) if not already set.
+ * Non-blocking — failure won't break the login flow.
  */
-const linkAftercaseToPatient = async (requestId, patientId) => {
-  if (!requestId || !patientId) return;
+const linkAndEnrichAftercareCase = async (requestId, patientId, extraData = {}) => {
+  if (!requestId || !patientId) return null;
   try {
-    await AftercareCase.updateMany(
-      { requestId, userId: null },
-      { $set: { userId: String(patientId) } }
+    const update = {
+      $set: {
+        userId: String(patientId),
+        ...(extraData.severity    && { severity:    extraData.severity }),
+        ...(extraData.summary     && { summary:     extraData.summary }),
+        ...(extraData.helperNotes && { helperNotes: extraData.helperNotes }),
+      },
+    };
+    const doc = await AftercareCase.findOneAndUpdate(
+      { requestId },
+      update,
+      { new: true }
     );
+    return doc;
   } catch (err) {
-    console.error('[helplinkTransfer] linkAftercaseToPatient error:', err.message);
+    console.error('[helplinkTransfer] linkAndEnrichAftercareCase error:', err.message);
+    return null;
   }
 };
 
@@ -81,9 +86,9 @@ const linkAftercaseToPatient = async (requestId, patientId) => {
  *
  * Expected body:
  * {
- *   email:        string | null,   // null → guest
+ *   email:        string | null,   // null → guest account
  *   name:         string,
- *   requestId:    string,          // HelpLink request ObjectId
+ *   requestId:    string,
  *   incidentType: string,
  *   helperNotes:  string,
  *   severity:     string,
@@ -91,6 +96,18 @@ const linkAftercaseToPatient = async (requestId, patientId) => {
  *   timestamp:    ISO string,
  *   recoveryStatus: string,
  *   location:     object | null,
+ * }
+ *
+ * Response always includes:
+ * {
+ *   success:     true,
+ *   accountType: 'existing' | 'new_registered' | 'guest',
+ *   token:       string,
+ *   patientId:   string,
+ *   name:        string,
+ *   isGuest:     boolean,
+ *   credentials: { email, password },  // present for new_registered AND guest
+ *   aftercareCase: { ... } | null,     // the linked/created AftercareCase doc
  * }
  */
 const helplinkTransfer = async (req, res) => {
@@ -102,101 +119,108 @@ const helplinkTransfer = async (req, res) => {
 
     const {
       email,
-      name         = 'Patient',
+      name           = 'Patient',
       requestId,
-      incidentType = 'unknown',
-      helperNotes  = '',
-      severity     = '',
-      summary      = '',
+      incidentType   = 'unknown',
+      helperNotes    = '',
+      severity       = 'unknown',
+      summary        = '',
       timestamp,
       recoveryStatus = 'pending',
-      location     = null,
+      location       = null,
     } = req.body;
 
     const hasEmail = email && typeof email === 'string' && email.includes('@');
+
+    // Shared extra data for case enrichment
+    const extraData = { severity, summary, helperNotes };
+
+    // Pre-hash the default password (same for all HelpLink transfers)
+    const hashedDefault = await bcrypt.hash(DEFAULT_PASSWORD, 12);
 
     // ── CASE 1: Registered HelpLink user (real email present) ────────────────
     if (hasEmail) {
       const normalizedEmail = email.toLowerCase().trim();
 
-      // 1a. Check if patient already exists in UniCare
       let patient = await Patient.findOne({ email: normalizedEmail });
 
       if (patient) {
-        // ── Account EXISTS → log them in, append recovery data ──────────────
-        const token = signToken(patient._id);
-        await linkAftercaseToPatient(requestId, patient._id);
+        // ── Account EXISTS → log them in, link recovery data ─────────────
+        const token         = signToken(patient._id);
+        const aftercareCase = await linkAndEnrichAftercareCase(requestId, patient._id, extraData);
 
         return res.status(200).json({
-          success:     true,
-          accountType: 'existing',
+          success:      true,
+          accountType:  'existing',
           token,
-          patientId:   patient._id,
-          name:        patient.name,
-          isGuest:     false,
+          patientId:    patient._id,
+          name:         patient.name,
+          isGuest:      false,
+          // Existing account: show default password so they know what was set
+          // (they may have changed it already → just remind them)
+          credentials:  null, // existing account — don't expose any password
+          aftercareCase: aftercareCase || null,
         });
 
       } else {
-        // ── Account DOES NOT EXIST → auto-create ────────────────────────────
-        // Generate a secure random password internally (user can reset later)
-        const tempPassword = generateTempPassword();
-        const hashed       = await bcrypt.hash(tempPassword, 12);
-
+        // ── Account DOES NOT EXIST → create with default password ────────
         patient = await Patient.create({
-          name:   name || normalizedEmail.split('@')[0],
-          email:  normalizedEmail,
-          password: hashed,
-          isVerified: true,        // trusted — came via HelpLink registered flow
-          // Mark origin so dashboard can show contextual UI
-          // We store this via a new field added to the schema (see schema patch)
+          name:          name || normalizedEmail.split('@')[0],
+          email:         normalizedEmail,
+          password:      hashedDefault,
+          isVerified:    true,
           accountSource: 'transferred_from_helplink',
         });
 
-        const token = signToken(patient._id);
-        await linkAftercaseToPatient(requestId, patient._id);
+        const token         = signToken(patient._id);
+        const aftercareCase = await linkAndEnrichAftercareCase(requestId, patient._id, extraData);
 
         return res.status(201).json({
-          success:     true,
-          accountType: 'new_registered',
+          success:      true,
+          accountType:  'new_registered',
           token,
-          patientId:   patient._id,
-          name:        patient.name,
-          isGuest:     false,
+          patientId:    patient._id,
+          name:         patient.name,
+          isGuest:      false,
+          // NEW: send credentials so UI shows "Consult Now" modal with creds
+          credentials: {
+            email:    normalizedEmail,
+            password: DEFAULT_PASSWORD,
+          },
+          aftercareCase: aftercareCase || null,
         });
       }
     }
 
     // ── CASE 2: Guest HelpLink user (no email) ───────────────────────────────
-    const guestEmail    = await generateGuestEmail();
-    const tempPassword  = generateTempPassword();
-    const hashed        = await bcrypt.hash(tempPassword, 12);
+    const guestEmail = await generateGuestEmail();
 
     const guest = await Patient.create({
       name:          name || 'Guest Recovery Account',
       email:         guestEmail,
-      password:      hashed,
+      password:      hashedDefault,
       isVerified:    true,
       accountSource: 'guest_helplink_transfer',
     });
 
-    const token = signToken(guest._id);
-    await linkAftercaseToPatient(requestId, guest._id);
+    const token         = signToken(guest._id);
+    const aftercareCase = await linkAndEnrichAftercareCase(requestId, guest._id, extraData);
 
     return res.status(201).json({
-      success:     true,
-      accountType: 'guest',
+      success:      true,
+      accountType:  'guest',
       token,
-      patientId:   guest._id,
-      name:        guest.name,
-      isGuest:     true,
+      patientId:    guest._id,
+      name:         guest.name,
+      isGuest:      true,
       credentials: {
         email:    guestEmail,
-        password: tempPassword,   // plaintext shown ONCE to user in UI
+        password: DEFAULT_PASSWORD,
       },
+      aftercareCase: aftercareCase || null,
     });
 
   } catch (err) {
-    // Handle duplicate email race condition
     if (err.code === 11000 && err.keyPattern?.email) {
       return res.status(409).json({
         success: false,

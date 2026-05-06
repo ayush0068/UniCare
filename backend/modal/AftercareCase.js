@@ -23,9 +23,7 @@ const aftercareSchema = new mongoose.Schema({
     default: null,
   },
 
-  // ── NEW — Consent flags ───────────────────────────────────────────────────
-  // Stores exactly what the user agreed to share.
-  // All fields default to null so existing records are unaffected.
+  // ── EXISTING — Consent flags ──────────────────────────────────────────────
   consent: {
     incident:  { type: Boolean, default: null },
     location:  { type: Boolean, default: null },
@@ -33,12 +31,29 @@ const aftercareSchema = new mongoose.Schema({
     anonymous: { type: Boolean, default: null },
   },
 
-  // ── NEW — Optional user note ──────────────────────────────────────────────
-  // Free-text note added by the user in the consent modal.
-  // maxlength enforced at schema level + sanitized in controller.
+  // ── EXISTING — Optional user note ─────────────────────────────────────────
   userNote: {
     type:      String,
     maxlength: 300,
+    default:   "",
+  },
+
+  // ── NEW — Richer incident data from HelpLink ──────────────────────────────
+  // severity:    'high' | 'medium' | 'low' | 'unknown'
+  // summary:     AI-generated or human-written summary of what happened
+  // helperNotes: Notes left by the responder/helper on scene
+  severity: {
+    type:    String,
+    default: "unknown",
+  },
+  summary: {
+    type:      String,
+    maxlength: 1000,
+    default:   "",
+  },
+  helperNotes: {
+    type:      String,
+    maxlength: 1000,
     default:   "",
   },
 

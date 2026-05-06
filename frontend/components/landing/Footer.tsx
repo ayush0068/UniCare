@@ -149,7 +149,7 @@ const Footer = () => {
                   <h3 className='text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 mb-5'>
                     {section.title}
                   </h3>
-                  <ul className='space-y-3'>
+                  {/* <ul className='space-y-3'>
                     {section.links.map((link, j) => (
                       <li key={j}>
                         <a href={link.href} className='footer-link text-slate-500 hover:text-white text-sm transition-colors duration-200'>
@@ -160,7 +160,7 @@ const Footer = () => {
                         </a>
                       </li>
                     ))}
-                  </ul>
+                  </ul> */}
                 </div>
               ))}
             </div>

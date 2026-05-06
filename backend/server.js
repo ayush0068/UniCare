@@ -1,5 +1,6 @@
 require('dotenv').config();
 require('./modal/Parchi');
+require('./modal/Patient');
 
 const express    = require('express');
 const mongoose   = require('mongoose');
@@ -17,6 +18,9 @@ const aiAssistantRoutes          = require('./routes/aiAssistant');
 
 // ✅ Aftercare Bridge — HelpLink → UniCare
 const aftercareRoutes = require('./routes/aftercare');
+
+// ✅ HelpLink Transfer — conditional onboarding (registered + guest)
+const helplinkTransferRoutes = require('./routes/helplinkTransfer');
 
 const app  = express();
 const PORT = process.env.PORT || 8000;
@@ -72,6 +76,11 @@ app.use('/api/notification', require('./routes/notification'));
 //          GET  /api/aftercare/my, GET /api/aftercare/by-request/:requestId,
 //          GET  /api/aftercare/:id
 app.use('/api', aftercareRoutes);
+
+// ✅ HelpLink Transfer — conditional onboarding endpoint
+// Exposes: POST /api/helplink/transfer
+// Protected by x-api-key (AFTERCARE_SECRET) — same secret as aftercare bridge
+app.use('/api/helplink', helplinkTransferRoutes);
 
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {

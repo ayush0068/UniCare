@@ -1,7 +1,11 @@
 /**
- * modal/Patient.js  (updated)
+ * modal/Patient.js
  *
- * Added: ucId field  →  auto-generated as "UC-PT-YY-NNNNN" on first save
+ * Added: ucId field         → auto-generated as "UC-PT-YY-NNNNN" on first save
+ * Added: accountSource field → records how the account was originally created
+ *        'self'                       — normal self-registration (default)
+ *        'transferred_from_helplink'  — auto-created from registered HelpLink user
+ *        'guest_helplink_transfer'    — temporary guest recovery account
  */
 const mongoose = require('mongoose');
 const { computeAgeFromDob } = require('../utils/date');
@@ -46,6 +50,16 @@ const patientSchema = new mongoose.Schema({
 
   isVerified: { type: Boolean, default: false },
   isActive:   { type: Boolean, default: true },
+
+  // ── Account origin (used for conditional dashboard UI) ──────────────────
+  // All existing accounts default to 'self' — no migration needed.
+  accountSource: {
+    type:    String,
+    enum:    ['self', 'transferred_from_helplink', 'guest_helplink_transfer'],
+    default: 'self',
+  },
+  // ────────────────────────────────────────────────────────────────────────
+
 }, { timestamps: true });
 
 

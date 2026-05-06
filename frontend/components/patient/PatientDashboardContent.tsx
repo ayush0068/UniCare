@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { getStatusColor } from '@/lib/constant';
 import PrescriptionViewModal from '../doctor/PrescriptionViewModal';
 import PatientReportsPage from '@/components/patient/PatientReportsPage';
+import { GuestBanner } from '@/components/GuestBanner';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
   Scheduled:   { bg: 'bg-sky-50 border border-sky-100',   text: 'text-sky-700',   dot: 'bg-sky-400' },
@@ -246,6 +247,9 @@ const PatientDashboardContent = () => {
 
       <div className='uc-font min-h-screen bg-[#F8F7F4] pt-16'>
         <div className='max-w-5xl mx-auto px-4 sm:px-6 py-8 page-animate'>
+
+          {/* ─── Guest / Transferred Account Banner ──────────────────── */}
+          <GuestBanner accountSource={(user as any).accountSource || 'self'} />
 
           {/* ─── Page Header ─────────────────────── */}
           <div className='flex items-center justify-between mb-8 gap-4 flex-wrap'>

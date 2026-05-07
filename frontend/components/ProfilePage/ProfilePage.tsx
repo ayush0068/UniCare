@@ -2,7 +2,7 @@
 
 import { healthcareCategories, specializations } from '@/lib/constant';
 import { userAuthStore } from '@/store/authStore';
-import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Shield, Stethoscope, Upload, User, X, AlertTriangle, CheckCircle2, Trash2 } from 'lucide-react';
+import { BadgeCheck, Camera, Clock, FileText, Heart, MapPin, Phone, Plus, Save, Shield, Stethoscope, Upload, User, X, AlertTriangle, CheckCircle2, Trash2, CreditCard } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import Header from '../landing/Header';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
 import { postWithAuth, deleteWithAuth, getWithAuth } from '@/service/httpService';
+import BankDetailsPanel from '../doctor/BankDetailsPanel';
 
 interface ProfileProps {
   userType: 'doctor' | 'patient';
@@ -433,6 +434,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
         { id: 'hospital', label: 'Hospital / Clinic', icon: MapPin },
         { id: 'availability', label: 'Availability', icon: Clock },
         { id: 'verification', label: 'Verification Docs', icon: Shield },
+        { id: 'bank', label: 'Bank Details', icon: CreditCard },
       ]
     : [
         { id: 'about', label: 'Personal Info', icon: User },
@@ -704,6 +706,7 @@ const ProfilePage = ({ userType }: ProfileProps) => {
       case 'contact': return renderContactSection();
       case 'medical': return renderMedicalSection();
       case 'emergency': return renderEmergencySection();
+      case 'bank': return <BankDetailsPanel />;
       default: return renderAboutSection();
     }
   };

@@ -151,6 +151,17 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
+          {/* Home Screen Link */}
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => router.push('/')}
+              className="text-sm text-slate-500 hover:text-slate-700 font-medium flex items-center justify-center gap-2"
+            >
+              <i className="bi bi-house" />
+              Return to Home Screen
+            </button>
+          </div>
+
         </div>
       </motion.div>
     </div>

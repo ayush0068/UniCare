@@ -855,4 +855,212 @@ router.get(
     }
 );
 
+
+router.get(
+  '/payouts',
+  authenticateAdmin,
+  requirePermission('paymentManagement'),
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('payoutStatus').optional().isString(),
+    query('doctorId').optional().isMongoId(),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { page = 1, limit = 20, payoutStatus, doctorId } = req.query;
+ 
+      const filter = { paymentStatus: 'Paid' };
+      if (payoutStatus) filter.payoutStatus = payoutStatus;
+      if (doctorId)     filter.doctorId     = doctorId;
+ 
+      const skip = (Number(page) - 1) * Number(limit);
+ 
+      const [items, total] = await Promise.all([
+        Appointment.find(filter)
+          .populate('doctorId', 'name email specialization profileImage bankDetails ucId fees')
+          .populate('patientId', 'name email profileImage')
+          .sort({ paymentDate: -1 })
+          .skip(skip)
+          .limit(Number(limit)),
+        Appointment.countDocuments(filter),
+      ]);
+ 
+      // Attach payoutAmount = consultationFees (platform fees excluded)
+      const enriched = items.map(a => ({
+        ...a.toObject(),
+        payoutAmount: a.consultationFees, // doctor gets consultation fee only
+      }));
+ 
+      // Summary stats
+      const [pendingStats, paidStats] = await Promise.all([
+        Appointment.aggregate([
+          { $match: { paymentStatus: 'Paid', payoutStatus: 'Pending' } },
+          { $group: { _id: null, total: { $sum: '$consultationFees' }, count: { $sum: 1 } } },
+        ]),
+        Appointment.aggregate([
+          { $match: { paymentStatus: 'Paid', payoutStatus: 'Paid' } },
+          { $group: { _id: null, total: { $sum: '$consultationFees' }, count: { $sum: 1 } } },
+        ]),
+      ]);
+ 
+      res.ok(enriched, 'Payouts fetched', {
+        page: Number(page), limit: Number(limit), total,
+        summary: {
+          pendingAmount: pendingStats[0]?.total || 0,
+          pendingCount:  pendingStats[0]?.count || 0,
+          paidAmount:    paidStats[0]?.total    || 0,
+          paidCount:     paidStats[0]?.count    || 0,
+        },
+      });
+    } catch (err) {
+      res.serverError('Failed to fetch payouts', [err.message]);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/admin/payouts/:appointmentId/mark-paid
+// Admin marks a single appointment payout as paid (manual bank transfer done)
+// payoutAmount = consultationFees (platform fee is UniCare's revenue, excluded)
+// ─────────────────────────────────────────────────────────────────────────────
+router.put(
+  '/payouts/:appointmentId/mark-paid',
+  authenticateAdmin,
+  requirePermission('paymentManagement'),
+  [
+    body('payoutNote').optional().isString().isLength({ max: 300 }),
+    body('transactionRef').optional().isString().isLength({ max: 100 }),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { payoutNote = '', transactionRef = '' } = req.body;
+      const { appointmentId } = req.params;
+ 
+      const appointment = await Appointment.findById(appointmentId)
+        .populate('doctorId', 'name email bankDetails specialization')
+        .populate('patientId', 'name email');
+ 
+      if (!appointment) return res.notFound('Appointment not found');
+      if (appointment.paymentStatus !== 'Paid') return res.badRequest('Patient has not paid for this appointment yet');
+      if (appointment.payoutStatus === 'Paid') return res.badRequest('Payout already marked as paid for this appointment');
+ 
+      // Amount doctor receives = consultationFees only (platform fees stay with UniCare)
+      const payoutAmount = appointment.consultationFees;
+ 
+      appointment.payoutStatus = 'Paid';
+      appointment.payoutDate   = new Date();
+      // Store payout meta in notes if provided
+      if (transactionRef || payoutNote) {
+        appointment.notes = [
+          appointment.notes,
+          transactionRef ? `Payout Ref: ${transactionRef}` : '',
+          payoutNote ? `Note: ${payoutNote}` : '',
+        ].filter(Boolean).join(' | ');
+      }
+      await appointment.save();
+ 
+      res.ok(
+        {
+          appointmentId,
+          doctorName:   appointment.doctorId.name,
+          payoutAmount,
+          payoutDate:   appointment.payoutDate,
+          transactionRef,
+        },
+        `Payout of ₹${payoutAmount} marked as paid to Dr. ${appointment.doctorId.name}`
+      );
+ 
+      // ── Notification to doctor ──
+      setImmediate(async () => {
+        try {
+          const Notification = require('../modal/Notification');
+          await Notification.create({
+            recipientId:   appointment.doctorId._id,
+            recipientType: 'doctor',
+            type:          'payment_received',
+            title:         '💳 Payout Received!',
+            message:       `You have received a payout of ₹${payoutAmount} for your consultation on ${new Date(appointment.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.${transactionRef ? ` Reference: ${transactionRef}` : ''}`,
+            link:          '/doctor/dashboard',
+          });
+        } catch (e) { console.error('Payout notification error:', e.message); }
+      });
+    } catch (err) {
+      res.serverError('Failed to mark payout as paid', [err.message]);
+    }
+  }
+);
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /api/admin/payouts/bulk-mark-paid
+// Mark multiple appointments as paid in one action
+// Body: { appointmentIds: string[], transactionRef?: string, payoutNote?: string }
+// ─────────────────────────────────────────────────────────────────────────────
+router.put(
+  '/payouts/bulk-mark-paid',
+  authenticateAdmin,
+  requirePermission('paymentManagement'),
+  [
+    body('appointmentIds').isArray({ min: 1 }).withMessage('appointmentIds array is required'),
+    body('transactionRef').optional().isString(),
+    body('payoutNote').optional().isString(),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { appointmentIds, transactionRef = '', payoutNote = '' } = req.body;
+ 
+      // Only update eligible ones: paid by patient, not yet paid out
+      const result = await Appointment.updateMany(
+        {
+          _id:           { $in: appointmentIds },
+          paymentStatus: 'Paid',
+          payoutStatus:  'Pending',
+        },
+        {
+          $set: {
+            payoutStatus: 'Paid',
+            payoutDate:   new Date(),
+          },
+        }
+      );
+ 
+      // Calculate total payout amount
+      const affected = await Appointment.find({
+        _id: { $in: appointmentIds }, payoutStatus: 'Paid',
+      }).select('consultationFees doctorId');
+ 
+      const totalPayout = affected.reduce((s, a) => s + a.consultationFees, 0);
+ 
+      res.ok(
+        { updated: result.modifiedCount, totalPayout, transactionRef },
+        `${result.modifiedCount} payouts marked as paid. Total: ₹${totalPayout}`
+      );
+ 
+      // Notifications
+      setImmediate(async () => {
+        try {
+          const Notification = require('../modal/Notification');
+          const appts = await Appointment.find({ _id: { $in: appointmentIds }, payoutStatus: 'Paid' })
+            .select('doctorId consultationFees date');
+          for (const a of appts) {
+            await Notification.create({
+              recipientId:   a.doctorId,
+              recipientType: 'doctor',
+              type:          'payment_received',
+              title:         '💳 Payout Received!',
+              message:       `You have received a payout of ₹${a.consultationFees} for your consultation on ${new Date(a.date).toLocaleDateString('en-IN')}.${transactionRef ? ` Reference: ${transactionRef}` : ''}`,
+              link:          '/doctor/dashboard',
+            });
+          }
+        } catch (e) { console.error('Bulk payout notification error:', e.message); }
+      });
+    } catch (err) {
+      res.serverError('Failed to bulk mark payouts', [err.message]);
+    }
+  }
+);
+
 module.exports = router;

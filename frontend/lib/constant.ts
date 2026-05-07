@@ -1,4 +1,4 @@
-import { Clock, Facebook, FileText, Instagram, Linkedin, Mail, MapPin, Phone, Twitter, Video } from "lucide-react";
+import { Calendar, Clock, Facebook, FileText, Instagram, Linkedin, Mail, MapPin, Phone, Twitter, Video } from "lucide-react";
 
 export const healthcareCategories = [
   {
@@ -223,18 +223,23 @@ export  const cities = ['Mumbai', 'Delhi', 'Bangalore', 'Chennai', 'Kolkata', 'H
 
 
     
-        export const emptyStates = {
-      upcoming: {
-        icon: Clock,
-        title: "No Upcoming Appointments",
-        description: "You have no upcoming appointments scheduled.",
-      },
-      completed: {
-        icon: FileText,
-        title: "No Completed Appointments",
-        description: "Completed consultations will appear here.",
-      },
-    };
+export const emptyStates = {
+  upcoming: {
+    icon: Clock,
+    title: "No Upcoming Appointments",
+    description: "You have no upcoming appointments scheduled.",
+  },
+  past: {
+    icon: Calendar,
+    title: "No Past Appointments",
+    description: "Your past consultations will appear here.",
+  },
+  completed: {
+    icon: FileText,
+    title: "No Completed Appointments",
+    description: "Completed consultations will appear here.",
+  },
+};
 
 
 

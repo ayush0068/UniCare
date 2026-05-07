@@ -52,12 +52,12 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
     return [];
   };
 
-  /* const publicNavLinks = [
-    { label: 'Find Doctors', href: '/doctor-list' },
-    { label: 'Specialties', href: '/specialties' },
-    { label: 'How It Works', href: '/#how-it-works' },
-    { label: 'About', href: '/about' },
-  ]; */
+  // const publicNavLinks = [
+  //   { label: 'Find Doctors', href: '/doctor-list' },
+  //   { label: 'Specialties', href: '/specialties' },
+  //   { label: 'How It Works', href: '/#how-it-works' },
+  //   { label: 'About', href: '/about' },
+  // ];
 
   // ── Dropdown items per role ──
   const getProfileDropdownItems = () => {
@@ -123,7 +123,7 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
         .admin-btn { animation: admin-glow 3s ease-in-out infinite; }
       `}</style>
 
-      <header className={`uc-font fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'pt-2 pb-2' : 'pt-4 pb-2'}`}>
+      <header className={`uc-font fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrolled ? 'pt-1.5 pb-1.5' : 'pt-2 pb-1.5'}`}>
         <div className='max-w-7xl mx-auto px-4 sm:px-6'>
           <div className={`hdr-animate relative flex items-center justify-between h-14 rounded-2xl px-4 sm:px-5 transition-all duration-500
             ${scrolled
@@ -148,7 +148,15 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
             {/* ─── Center Nav ───────────────────────────── */}
             {!isAuthenticated && !showDashboardNav && (
               <nav className='hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2'>
-                
+                {/* {publicNavLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className='nav-pill relative text-[13px] font-medium text-slate-600 hover:text-slate-900 transition-colors duration-200 py-1'
+                  >
+                    {link.label}
+                  </Link>
+                ))} */}
               </nav>
             )}
 
@@ -282,7 +290,16 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav = false }) => {
           {mobileOpen && (
             <div className='mob-animate md:hidden mt-2 bg-white/97 backdrop-blur-2xl rounded-2xl border border-slate-100 shadow-2xl overflow-hidden'>
               <div className='p-3 space-y-0.5'>
-                
+                {/* {publicNavLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className='flex items-center px-4 py-3 text-sm font-medium text-slate-700 hover:text-sky-600 hover:bg-sky-50/70 rounded-xl transition-all duration-200'
+                  >
+                    {link.label}
+                  </Link>
+                ))} */}
                  <div className='pt-3 mt-1 border-t border-slate-100 flex flex-col gap-2 pb-1'>
                    <Link href='/login/patient' onClick={() => setMobileOpen(false)}>
                      <button className='w-full text-sm font-medium text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl hover:bg-slate-50 transition-all duration-200'>

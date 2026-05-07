@@ -23,7 +23,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#F8F7F4]">
       <Header showDashboardNav={false} />
       <main className="pt-16">
         <LandingHero/>

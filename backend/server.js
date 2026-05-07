@@ -1,6 +1,5 @@
 require('dotenv').config();
 require('./modal/Parchi');
-require('./modal/Patient');
 
 const express    = require('express');
 const mongoose   = require('mongoose');
@@ -9,18 +8,18 @@ const morgan     = require('morgan');
 const cors       = require('cors');
 const bodyParser = require('body-parser');
 
-const response   = require('./middleware/response');
+const response    = require('./middleware/response');
 require('./config/passport');
 const passportLib = require('passport');
 
 const { startReminderScheduler } = require('./utils/reminderScheduler');
 const aiAssistantRoutes          = require('./routes/aiAssistant');
 
-// ✅ Aftercare Bridge — HelpLink → UniCare
+// ── Aftercare Bridge — HelpLink → UniCare (existing) ─────────────────────────
 const aftercareRoutes = require('./routes/aftercare');
 
-// ✅ HelpLink Transfer — conditional onboarding (registered + guest)
-const helplinkTransferRoutes = require('./routes/helplinkTransfer');
+// ── Temporary Recovery Session — new identity layer ──────────────────────────
+const recoveryRoutes  = require('./routes/recovery');
 
 const app  = express();
 const PORT = process.env.PORT || 8000;
@@ -35,16 +34,15 @@ app.use(cors({
   credentials: true,
 }));
 
-// ── Body parsing (20 mb limit from current server) ───────────────────────────
+// ── Body parsing ──────────────────────────────────────────────────────────────
 app.use(bodyParser.json({ limit: '20mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '20mb' }));
 
-// ── Custom response helpers & passport ───────────────────────────────────────
+// ── Middleware ────────────────────────────────────────────────────────────────
 app.use(response);
 app.use(passportLib.initialize());
 
 // ── DB readiness guard ────────────────────────────────────────────────────────
-// Blocks requests until MongoDB is fully connected.
 app.use((req, res, next) => {
   if (mongoose.connection.readyState !== 1) {
     return res.status(503).json({
@@ -61,7 +59,7 @@ app.get('/health', (req, res) => res.ok({
   database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
 }, 'OK'));
 
-// ── Existing routes (unchanged) ───────────────────────────────────────────────
+// ── Existing routes (completely unchanged) ────────────────────────────────────
 app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/doctor',       require('./routes/doctor'));
 app.use('/api/patient',      require('./routes/patient'));
@@ -71,16 +69,11 @@ app.use('/api/ai',           aiAssistantRoutes);
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/notification', require('./routes/notification'));
 
-// ✅ Aftercare Bridge routes — public, verified by x-api-key header
-// Exposes: POST /api/aftercare, GET /api/aftercare,
-//          GET  /api/aftercare/my, GET /api/aftercare/by-request/:requestId,
-//          GET  /api/aftercare/:id
+// ── Aftercare Bridge (existing — HelpLink → UniCare case storage) ─────────────
 app.use('/api', aftercareRoutes);
 
-// ✅ HelpLink Transfer — conditional onboarding endpoint
-// Exposes: POST /api/helplink/transfer
-// Protected by x-api-key (AFTERCARE_SECRET) — same secret as aftercare bridge
-app.use('/api/helplink', helplinkTransferRoutes);
+// ── Temporary Recovery Session (new — identity layer on top of aftercare) ─────
+app.use('/api', recoveryRoutes);
 
 // ── Global error handler ──────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -92,16 +85,14 @@ app.use((err, req, res, next) => {
   });
 });
 
-// ── Start server (async — waits for MongoDB before accepting traffic) ─────────
+// ── Start server ──────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 10000,
     });
     console.log('MongoDB connected');
-
     startReminderScheduler();
-
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error('MongoDB connection error:', err);

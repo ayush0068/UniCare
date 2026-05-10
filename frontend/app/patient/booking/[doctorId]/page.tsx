@@ -27,8 +27,18 @@ const page = () => {
   const { bookAppointment, loading, fetchBookedSlots, bookedSlots } =
     useAppointmentStore();
 
-  const { user } = userAuthStore();
+  const { user, isAuthenticated, loginAsGuest } = userAuthStore();
   const isGuest = user?.isGuest ?? false;
+
+  // ✅ Auto-login as guest when user arrives from HelpLink with no UniCare session.
+  // loginAsGuest() calls POST /auth/guest/login → returns a valid UniCare JWT.
+  // This gives the token that check-discount and book endpoints require.
+  // Existing logged-in patients are unaffected (isAuthenticated is already true).
+  useEffect(() => {
+    if (!isAuthenticated) {
+      loginAsGuest().catch(err => console.error('Guest login failed:', err));
+    }
+  }, [isAuthenticated]);
 
   // state
   const [currentStep, setCurrentStep] = useState(1);

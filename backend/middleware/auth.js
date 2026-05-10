@@ -7,8 +7,9 @@ module.exports = {
     authenticate: async (req,res,next) => {
         try {
             const header = req.headers.authorization;
-            const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-            if(!token ) return res.unauthorized('Missing token');
+            if (!header) return res.unauthorized('Missing token');
+                const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+                if(!token ) return res.unauthorized('Missing token');
 
             const decode = jwt.verify(token, process.env.JWT_SECRET);
             req.auth = decode;

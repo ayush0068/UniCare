@@ -164,20 +164,32 @@ export default function AIAssistantButton() {
   const [input, setInput]               = useState('')
   const [loading, setLoading]           = useState(false)
   const [listening, setListening]       = useState(false)
-  const [voiceOn, setVoiceOn]           = useState(true)
+  // ✅ FIX: Voice muted by default
+  const [voiceOn, setVoiceOn]           = useState(false)
   const [persona, setPersona]           = useState<VoicePersona>('default')
   const [lang, setLang]                 = useState<'en' | 'hi'>('en')
   const [showSettings, setShowSettings] = useState(false)
   const [greeted, setGreeted]           = useState(false)
   const [typing, setTyping]             = useState(false)
   const [sessionId, setSessionId]       = useState<string | null>(null)
+  // ✅ FIX: Track mobile for responsive layout
+  const [isMobile, setIsMobile]         = useState(false)
 
   const endRef     = useRef<HTMLDivElement>(null)
   const inputRef   = useRef<HTMLInputElement>(null)
   const recRef     = useRef<any>(null)
-  const voiceRef   = useRef(true)
+  // ✅ FIX: voiceRef starts false to match state
+  const voiceRef   = useRef(false)
   const personaRef = useRef<VoicePersona>('default')
   const sessionRef = useRef<string | null>(null)
+
+  // ✅ FIX: Detect mobile on mount and on resize
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 480)
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   useEffect(() => { voiceRef.current = voiceOn;     if (!voiceOn) window.speechSynthesis?.cancel() }, [voiceOn])
   useEffect(() => { personaRef.current = persona },  [persona])
@@ -191,10 +203,6 @@ export default function AIAssistantButton() {
   const isCallPage = pathname?.includes('/call/')
   const isCallActive = currentAppointment?.status === 'In Progress'
 
-  /*
-   * Patient → only on landing page '/'
-   * Doctor  → everywhere EXCEPT call pages
-   */
   const visible = isAuthenticated && user && (
     (isPatient && pathname === '/') ||
     (isDoctor  && !isCallPage && !isCallActive)
@@ -275,9 +283,38 @@ export default function AIAssistantButton() {
 
   const fmtTime = (d: Date) => d.toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit' })
 
+  /* ── Responsive layout values ──────────────────────────────── */
+  // Mobile: full-width bottom sheet | Desktop: floating bubble
+  const chatStyle: React.CSSProperties = {
+    position: 'fixed',
+    bottom: 0,
+    right: 0,
+    width: isMobile ? '100vw' : 'min(400px, calc(100vw - 48px))',
+    height: isMobile ? '92dvh' : 'min(620px, calc(100dvh - 100px))',
+    zIndex: 9990,
+    borderRadius: isMobile ? '20px 20px 0 0' : 22,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'linear-gradient(160deg,#0d1117 0%,#0f172a 55%,#0c1628 100%)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    boxShadow: isMobile
+      ? '0 -8px 40px rgba(0,0,0,0.55)'
+      : '0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.07)',
+  }
+
+  // FAB position: bottom-right on both, but with safe-area on mobile
+  const fabWrapperStyle: React.CSSProperties = {
+    position: 'fixed',
+    bottom: isMobile ? 'max(20px, env(safe-area-inset-bottom))' : 24,
+    right: isMobile ? 20 : 24,
+    zIndex: 9990,
+    fontFamily: "'DM Sans',system-ui,sans-serif",
+  }
+
   return (
     <Portal>
-      <div style={{ position:'fixed', bottom:24, right:24, zIndex:9990, fontFamily:"'DM Sans',system-ui,sans-serif" }}>
+      <div style={fabWrapperStyle}>
 
         {/* ══════════ MINIMAL FAB ══════════════════════════════ */}
         <AnimatePresence>
@@ -324,31 +361,27 @@ export default function AIAssistantButton() {
           {open && (
             <motion.div
               key="chat"
-              initial={{ opacity:0, y:18, scale:0.93 }}
-              animate={{ opacity:1, y:0, scale:1 }}
-              exit={{ opacity:0, y:18, scale:0.93 }}
+              // ✅ FIX: Slide up from bottom on mobile, scale from corner on desktop
+              initial={isMobile ? { y: '100%', opacity: 0 } : { opacity:0, y:18, scale:0.93 }}
+              animate={isMobile ? { y: 0, opacity: 1 } : { opacity:1, y:0, scale:1 }}
+              exit={isMobile ? { y: '100%', opacity: 0 } : { opacity:0, y:18, scale:0.93 }}
               transition={{ type:'spring', stiffness:340, damping:28 }}
               onClick={e => e.stopPropagation()}
-              style={{
-                position:'fixed',
-                bottom:24, right:24,
-                width:'min(400px, calc(100vw - 24px))',
-                height:'min(620px, calc(100dvh - 100px))',
-                zIndex:9990,
-                borderRadius:22,
-                overflow:'hidden',
-                display:'flex', flexDirection:'column',
-                background:'linear-gradient(160deg,#0d1117 0%,#0f172a 55%,#0c1628 100%)',
-                border:'1px solid rgba(255,255,255,0.08)',
-                boxShadow:'0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.07)',
-              }}
+              style={chatStyle}
             >
               {/* Ambient glows */}
               <div style={{ position:'absolute', top:-50, right:-30, width:160, height:160, borderRadius:'50%', background:'rgba(14,165,233,0.07)', filter:'blur(40px)', pointerEvents:'none' }} />
               <div style={{ position:'absolute', bottom:-30, left:-20, width:130, height:130, borderRadius:'50%', background:'rgba(99,102,241,0.06)', filter:'blur(32px)', pointerEvents:'none' }} />
 
+              {/* ── Mobile drag handle ────────────────────────── */}
+              {isMobile && (
+                <div style={{ display:'flex', justifyContent:'center', padding:'10px 0 4px', flexShrink:0 }}>
+                  <div style={{ width:36, height:4, borderRadius:2, background:'rgba(255,255,255,0.18)' }} />
+                </div>
+              )}
+
               {/* ─── Header ───────────────────────────────────── */}
-              <div style={{ padding:'12px 13px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, background:'rgba(255,255,255,0.015)' }}>
+              <div style={{ padding: isMobile ? '10px 14px' : '12px 13px', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid rgba(255,255,255,0.06)', flexShrink:0, background:'rgba(255,255,255,0.015)' }}>
                 {/* Avatar */}
                 <div style={{ width:35, height:35, borderRadius:11, background:'linear-gradient(135deg,rgba(14,165,233,0.22),rgba(99,102,241,0.22))', border:'1px solid rgba(56,189,248,0.16)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
                   <Stethoscope size={15} color="#38bdf8" />
@@ -374,7 +407,7 @@ export default function AIAssistantButton() {
                   ].map((btn,i) => (
                     <motion.button key={i} whileHover={{ scale:1.12 }} whileTap={{ scale:0.9 }}
                       onClick={btn.fn} title={btn.tip}
-                      style={{ width:26, height:26, borderRadius:7, border:'1px solid rgba(255,255,255,0.07)', background:btn.active?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.04)', color:btn.active?'#38bdf8':'rgba(148,163,184,0.65)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
+                      style={{ width:28, height:28, borderRadius:7, border:'1px solid rgba(255,255,255,0.07)', background:btn.active?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.04)', color:btn.active?'#38bdf8':'rgba(148,163,184,0.65)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}
                     >{btn.icon}</motion.button>
                   ))}
                 </div>
@@ -413,7 +446,7 @@ export default function AIAssistantButton() {
               </AnimatePresence>
 
               {/* ─── Messages ─────────────────────────────────── */}
-              <div style={{ flex:1, overflowY:'auto', padding:'10px 11px 6px', display:'flex', flexDirection:'column', gap:5, scrollbarWidth:'thin', scrollbarColor:'rgba(255,255,255,0.1) transparent' }}>
+              <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '12px 13px 8px' : '10px 11px 6px', display:'flex', flexDirection:'column', gap:5, scrollbarWidth:'thin', scrollbarColor:'rgba(255,255,255,0.1) transparent' }}>
                 {messages.map(msg => (
                   <div key={msg.id}>
                     <motion.div
@@ -427,9 +460,11 @@ export default function AIAssistantButton() {
                         </div>
                       )}
                       <div style={{
-                        maxWidth:'83%', padding:'8px 11px',
+                        maxWidth: isMobile ? '88%' : '83%',
+                        padding:'8px 11px',
                         borderRadius: msg.role==='user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                        fontSize:12.5, lineHeight:1.65,
+                        fontSize: isMobile ? 13.5 : 12.5,
+                        lineHeight:1.65,
                         background: msg.role==='user' ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'rgba(255,255,255,0.05)',
                         color: msg.role==='user' ? 'white' : '#cbd5e1',
                         border: msg.role==='assistant' ? '1px solid rgba(255,255,255,0.07)' : 'none',
@@ -460,10 +495,10 @@ export default function AIAssistantButton() {
 
               {/* ─── Quick chips ──────────────────────────────── */}
               {messages.length <= 1 && (
-                <div style={{ padding:'3px 11px 5px', display:'flex', gap:5, flexWrap:'wrap', flexShrink:0 }}>
+                <div style={{ padding: isMobile ? '4px 13px 6px' : '3px 11px 5px', display:'flex', gap:6, flexWrap:'wrap', flexShrink:0 }}>
                   {chips.map(c => (
                     <motion.button key={c} whileHover={{ scale:1.03 }} whileTap={{ scale:0.96 }} onClick={() => send(c)}
-                      style={{ display:'flex', alignItems:'center', gap:3, background:'rgba(56,189,248,0.08)', border:'1px solid rgba(56,189,248,0.17)', color:'#38bdf8', borderRadius:20, padding:'3px 9px', fontSize:11, cursor:'pointer', fontWeight:500 }}
+                      style={{ display:'flex', alignItems:'center', gap:3, background:'rgba(56,189,248,0.08)', border:'1px solid rgba(56,189,248,0.17)', color:'#38bdf8', borderRadius:20, padding: isMobile ? '5px 11px' : '3px 9px', fontSize: isMobile ? 12 : 11, cursor:'pointer', fontWeight:500 }}
                     >
                       <ChevronRight size={9} />{c}
                     </motion.button>
@@ -472,7 +507,7 @@ export default function AIAssistantButton() {
               )}
 
               {/* ─── Input area ───────────────────────────────── */}
-              <div style={{ padding:'5px 10px 11px', flexShrink:0, borderTop:'1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ padding: isMobile ? `6px 12px max(14px, env(safe-area-inset-bottom))` : '5px 10px 11px', flexShrink:0, borderTop:'1px solid rgba(255,255,255,0.05)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.05)', border:`1.5px solid ${listening ? 'rgba(239,68,68,0.5)' : 'rgba(255,255,255,0.08)'}`, borderRadius:13, padding:'5px 5px 5px 11px', transition:'border-color 0.2s' }}>
                   <input
                     ref={inputRef}
@@ -481,26 +516,26 @@ export default function AIAssistantButton() {
                     onKeyDown={e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send() } }}
                     placeholder={listening ? '🎤 Listening...' : lang==='hi' ? 'अपने लक्षण बताएं...' : isDoctor ? 'Ask anything clinical...' : 'Describe your symptoms...'}
                     disabled={loading}
-                    style={{ flex:1, border:'none', background:'transparent', fontSize:12.5, color:'#e2e8f0', outline:'none', fontFamily:'inherit' }}
+                    style={{ flex:1, border:'none', background:'transparent', fontSize: isMobile ? 14 : 12.5, color:'#e2e8f0', outline:'none', fontFamily:'inherit' }}
                   />
                   {/* Mic */}
                   <motion.button whileHover={{ scale:1.1 }} whileTap={{ scale:0.9 }} onClick={toggleMic}
-                    style={{ width:28, height:28, borderRadius:'50%', border:'none', background:listening?'rgba(239,68,68,0.82)':'rgba(255,255,255,0.07)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:listening?'0 0 10px rgba(239,68,68,0.4)':'none', transition:'all 0.2s' }}
+                    style={{ width: isMobile ? 32 : 28, height: isMobile ? 32 : 28, borderRadius:'50%', border:'none', background:listening?'rgba(239,68,68,0.82)':'rgba(255,255,255,0.07)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:listening?'0 0 10px rgba(239,68,68,0.4)':'none', transition:'all 0.2s' }}
                   >
                     {listening
-                      ? <motion.div animate={{ scale:[1,1.15,1] }} transition={{ duration:0.5, repeat:Infinity }}><MicOff size={12} color="white" /></motion.div>
-                      : <Mic size={12} color="rgba(148,163,184,0.55)" />
+                      ? <motion.div animate={{ scale:[1,1.15,1] }} transition={{ duration:0.5, repeat:Infinity }}><MicOff size={isMobile ? 14 : 12} color="white" /></motion.div>
+                      : <Mic size={isMobile ? 14 : 12} color="rgba(148,163,184,0.55)" />
                     }
                   </motion.button>
                   {/* Send */}
                   <motion.button
                     whileHover={{ scale: input.trim() && !loading ? 1.07 : 1 }} whileTap={{ scale:0.93 }}
                     onClick={() => send()} disabled={!input.trim() || loading}
-                    style={{ width:28, height:28, borderRadius:'50%', border:'none', background: input.trim()&&!loading ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'rgba(255,255,255,0.05)', cursor:input.trim()&&!loading?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s', boxShadow:input.trim()&&!loading?'0 3px 10px rgba(14,165,233,0.38)':'none' }}
+                    style={{ width: isMobile ? 32 : 28, height: isMobile ? 32 : 28, borderRadius:'50%', border:'none', background: input.trim()&&!loading ? 'linear-gradient(135deg,#0ea5e9,#0284c7)' : 'rgba(255,255,255,0.05)', cursor:input.trim()&&!loading?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s', boxShadow:input.trim()&&!loading?'0 3px 10px rgba(14,165,233,0.38)':'none' }}
                   >
                     {loading
                       ? <motion.div style={{ width:11, height:11, border:'2px solid rgba(255,255,255,0.2)', borderTopColor:'white', borderRadius:'50%' }} animate={{ rotate:360 }} transition={{ duration:0.7, repeat:Infinity, ease:'linear' }} />
-                      : <Send size={11} color={input.trim()?'white':'rgba(148,163,184,0.28)'} />
+                      : <Send size={isMobile ? 13 : 11} color={input.trim()?'white':'rgba(148,163,184,0.28)'} />
                     }
                   </motion.button>
                 </div>

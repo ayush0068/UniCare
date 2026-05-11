@@ -15,14 +15,12 @@ const generateToken = () => crypto.randomBytes(32).toString("hex");
 // ─────────────────────────────────────────────────────────────────────────────
 const createRecoverySession = async (req, res) => {
   try {
-    // Verify source
     if (req.headers["x-api-key"] !== process.env.AFTERCARE_SECRET) {
       return res.status(403).json({ success: false, message: "Unauthorized source" });
     }
 
     const { aftercareCaseId, userId, guestId, isGuest } = req.body;
 
-    // Load the AftercareCase to build the incident snapshot
     let incidentSnapshot = {};
     if (aftercareCaseId) {
       const ac = await AftercareCase.findById(aftercareCaseId);
@@ -31,7 +29,6 @@ const createRecoverySession = async (req, res) => {
           incidentType: ac.incidentType || "unknown",
           severity:     ac.consent?.incident !== false ? (ac.notes ? "reported" : "unknown") : "unknown",
           timestamp:    ac.time || ac.createdAt,
-          // Only include notes/location if user consented
           userNotes:    ac.consent?.contact  !== false ? (ac.userNote || "") : "",
           location:     ac.consent?.location !== false ? (ac.location || null) : null,
         };
@@ -87,7 +84,6 @@ const getRecoverySession = async (req, res) => {
       return res.status(410).json({ success: false, message: "Recovery session has expired" });
     }
 
-    // Return only safe fields — never expose otpHash, linkedUnicarePatientId internals
     return res.json({
       success: true,
       session: {
@@ -98,14 +94,14 @@ const getRecoverySession = async (req, res) => {
         expiresAt:        session.expiresAt,
         incidentSnapshot: session.incidentSnapshot,
         consultations:    session.consultations.map(c => ({
-          doctorName:   c.doctorName,
-          consultedAt:  c.consultedAt,
-          notes:        c.notes,
+          doctorName:    c.doctorName,
+          consultedAt:   c.consultedAt,
+          notes:         c.notes,
           prescriptions: c.prescriptions,
-          followUpDate: c.followUpDate,
+          followUpDate:  c.followUpDate,
         })),
-        hasPersisted:     !!(session.persistedPhone || session.persistedEmail),
-        createdAt:        session.createdAt,
+        hasPersisted: !!(session.persistedPhone || session.persistedEmail),
+        createdAt:    session.createdAt,
       },
     });
 
@@ -122,7 +118,7 @@ const getRecoverySession = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 const sendOtpForPersistence = async (req, res) => {
   try {
-    const { contact, type } = req.body; // type: "phone" | "email"
+    const { contact, type } = req.body;
 
     const session = await TemporaryRecoverySession.findOne({
       sessionToken: req.params.token,
@@ -133,13 +129,12 @@ const sendOtpForPersistence = async (req, res) => {
       return res.status(404).json({ success: false, message: "Session not found or expired" });
     }
 
-    // Generate 6-digit OTP
     const otp       = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash   = await bcrypt.hash(otp, 10);
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
 
-    session.otpHash       = otpHash;
-    session.otpExpiresAt  = otpExpiry;
+    session.otpHash      = otpHash;
+    session.otpExpiresAt = otpExpiry;
 
     if (type === "phone") session.persistedPhone = contact;
     if (type === "email") session.persistedEmail = contact;
@@ -147,14 +142,11 @@ const sendOtpForPersistence = async (req, res) => {
     session.auditLog.push({ action: "otp_sent", meta: { type } });
     await session.save();
 
-    // In production: send OTP via SMS/email service here
-    // For now: log it (replace with your actual email/SMS service)
     console.log(`[Recovery OTP] Token: ${req.params.token} | OTP: ${otp} | Contact: ${contact}`);
 
     return res.json({
       success: true,
       message: `OTP sent to your ${type}. Valid for 10 minutes.`,
-      // In dev only — remove in production:
       ...(process.env.NODE_ENV === "development" && { devOtp: otp }),
     });
 
@@ -195,10 +187,9 @@ const verifyOtpAndPersist = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    // Extend expiry to 30 days now that user has verified
     session.status    = "saved";
     session.expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    session.otpHash   = null; // clear OTP after use
+    session.otpHash   = null;
     session.auditLog.push({ action: "otp_verified", meta: { status: "saved" } });
     await session.save();
 
@@ -231,11 +222,9 @@ const getSnapshotDownload = async (req, res) => {
       return res.status(404).json({ success: false, message: "Session not found or expired" });
     }
 
-    // Return only privacy-safe snapshot fields
-    // NEVER includes: helper identities, tracking history, moderation data
     const snapshot = {
-      generatedAt:      new Date().toISOString(),
-      source:           "HelpLink Emergency Aftercare",
+      generatedAt:   new Date().toISOString(),
+      source:        "HelpLink Emergency Aftercare",
       incident: {
         type:      session.incidentSnapshot.incidentType,
         severity:  session.incidentSnapshot.severity,
@@ -264,10 +253,135 @@ const getSnapshotDownload = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ✅ NEW — Lookup: send OTP to phone/email to find a saved session
+// @desc   User enters their phone/email on home page → we send them an OTP
+// @route  POST /api/recovery/lookup
+// @access Public
+// ─────────────────────────────────────────────────────────────────────────────
+const lookupSessionByContact = async (req, res) => {
+  try {
+    const { contact, type } = req.body; // type: "phone" | "email"
+
+    if (!contact || !type) {
+      return res.status(400).json({ success: false, message: "Contact and type are required" });
+    }
+
+    // Find the most recent saved session for this contact
+    const query = type === "phone"
+      ? { persistedPhone: contact.trim(), status: "saved" }
+      : { persistedEmail: contact.trim(), status: "saved" };
+
+    const session = await TemporaryRecoverySession
+      .findOne(query)
+      .sort({ createdAt: -1 }); // most recent first
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: "No saved recovery session found for this contact. Please check your phone number or email.",
+      });
+    }
+
+    // Check it hasn't expired
+    if (new Date() > session.expiresAt) {
+      return res.status(410).json({
+        success: false,
+        message: "Your recovery session has expired (sessions last 30 days). Please create a new one from HelpLink.",
+      });
+    }
+
+    // Generate a fresh OTP for re-access
+    const otp       = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash   = await bcrypt.hash(otp, 10);
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    session.otpHash      = otpHash;
+    session.otpExpiresAt = otpExpiry;
+    session.auditLog.push({ action: "lookup_otp_sent", meta: { type, contact } });
+    await session.save();
+
+    // In production: send OTP via your SMS/email service
+    console.log(`[Lookup OTP] Contact: ${contact} | OTP: ${otp}`);
+
+    return res.json({
+      success: true,
+      message: `OTP sent to your ${type}. Valid for 10 minutes.`,
+      // Dev only — remove in production
+      ...(process.env.NODE_ENV === "development" && { devOtp: otp }),
+    });
+
+  } catch (err) {
+    console.error("lookupSessionByContact error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ✅ NEW — Verify lookup OTP and return the sessionToken
+// @desc   User submits OTP → we return their sessionToken → frontend redirects
+// @route  POST /api/recovery/lookup/verify
+// @access Public
+// ─────────────────────────────────────────────────────────────────────────────
+const verifyLookupOtp = async (req, res) => {
+  try {
+    const { contact, type, otp } = req.body;
+
+    if (!contact || !type || !otp) {
+      return res.status(400).json({ success: false, message: "Contact, type and OTP are required" });
+    }
+
+    const query = type === "phone"
+      ? { persistedPhone: contact.trim(), status: "saved" }
+      : { persistedEmail: contact.trim(), status: "saved" };
+
+    const session = await TemporaryRecoverySession
+      .findOne(query)
+      .sort({ createdAt: -1 });
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Session not found" });
+    }
+
+    if (!session.otpHash || !session.otpExpiresAt) {
+      return res.status(400).json({ success: false, message: "No OTP was requested. Please start over." });
+    }
+
+    if (new Date() > session.otpExpiresAt) {
+      return res.status(400).json({ success: false, message: "OTP has expired. Please request a new one." });
+    }
+
+    const valid = await bcrypt.compare(String(otp).trim(), session.otpHash);
+    if (!valid) {
+      return res.status(400).json({ success: false, message: "Invalid OTP. Please try again." });
+    }
+
+    // Clear OTP after successful use
+    session.otpHash      = null;
+    session.otpExpiresAt = null;
+    session.auditLog.push({ action: "lookup_otp_verified", meta: { type } });
+    await session.save();
+
+    // Return the sessionToken — frontend uses it to redirect to snapshot page
+    return res.json({
+      success:      true,
+      message:      "Identity verified. Redirecting to your recovery session.",
+      sessionToken: session.sessionToken,
+    });
+
+  } catch (err) {
+    console.error("verifyLookupOtp error:", err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   createRecoverySession,
   getRecoverySession,
   sendOtpForPersistence,
   verifyOtpAndPersist,
   getSnapshotDownload,
+  // ✅ NEW
+  lookupSessionByContact,
+  verifyLookupOtp,
 };

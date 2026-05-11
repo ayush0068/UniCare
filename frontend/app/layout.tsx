@@ -30,6 +30,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <AIAssistantButton /> {/* 🔥 GLOBAL FLOATING BUTTON */}
+         
         </Providers>
       </body>
     </html>

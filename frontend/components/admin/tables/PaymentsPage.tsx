@@ -33,20 +33,27 @@ function PayDoctorModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [transactionRef, setTransactionRef] = useState('');
-  const [payoutNote, setPayoutNote]         = useState('');
-  const [loading, setLoading]               = useState(false);
+  const [loading, setLoading]           = useState(false);
+  const [generatedUTR, setGeneratedUTR] = useState('');
 
-  const bd = (appointment.doctorId as any)?.bankDetails;
-  const payoutAmt = appointment.consultationFees; // platform fee excluded
+  const bd         = (appointment.doctorId as any)?.bankDetails;
+  const payoutAmt  = appointment.consultationFees;
+  const guestExtra = appointment.guestSurcharge || 0;  // derived on backend — works for all appointments
 
-  const handlePay = async () => {
+  const handlePayout = async () => {
     setLoading(true);
     try {
-      await markPayoutPaid(appointment._id, { transactionRef, payoutNote });
-      toast(`Payout of ${fmtMoney(payoutAmt)} marked as paid to Dr. ${(appointment.doctorId as any)?.name}`, 'success');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') || '' : '';
+      const res   = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/payment/payout-doctor`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ appointmentId: appointment._id }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      setGeneratedUTR(data.data.utr);
+      toast(`Payout of ${fmtMoney(payoutAmt)} processed! UTR: ${data.data.utr}`, 'success');
       onSuccess();
-      onClose();
     } catch (e: any) {
       toast(e.message || 'Payout failed', 'error');
     } finally {
@@ -76,17 +83,31 @@ function PayDoctorModal({
                 <i className="bi bi-x-lg text-sm" />
               </button>
             </div>
+
             {/* Amount breakdown */}
             <div className="mt-4 bg-white/15 rounded-2xl p-4 space-y-2">
               <div className="flex justify-between text-sm text-white/80">
-                <span>Patient paid (total)</span>
-                <span className="font-semibold">{fmtMoney(appointment.totalAmount)}</span>
+                <span>Consultation fee</span>
+                <span className="font-semibold">{fmtMoney(appointment.consultationFees)}</span>
               </div>
               <div className="flex justify-between text-sm text-white/80">
-                <span>Platform fee (UniCare keeps)</span>
-                <span className="font-semibold text-red-200">− {fmtMoney(appointment.platformFees)}</span>
+                <span>Platform fee (10%)</span>
+                <span className="font-semibold">{fmtMoney(appointment.platformFees)}</span>
               </div>
+              {guestExtra > 0 && (
+                <div className="flex justify-between text-sm text-amber-200">
+                  <span className="flex items-center gap-1">
+                    <i className="bi bi-person-dash text-xs" />
+                    Guest surcharge (Admin keeps)
+                  </span>
+                  <span className="font-semibold">{fmtMoney(guestExtra)}</span>
+                </div>
+              )}
               <div className="border-t border-white/20 pt-2 flex justify-between">
+                <span className="text-white/80 text-sm">Patient paid (total)</span>
+                <span className="text-white font-bold">{fmtMoney(appointment.totalAmount)}</span>
+              </div>
+              <div className="border-t border-white/30 pt-2 flex justify-between">
                 <span className="text-white font-bold">Doctor receives</span>
                 <span className="text-white font-extrabold text-[17px]">{fmtMoney(payoutAmt)}</span>
               </div>
@@ -98,23 +119,21 @@ function PayDoctorModal({
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-3">Doctor Bank Details</p>
             {bd?.accountNumber ? (
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-slate-500">Account Holder</span>
-                  <span className="text-[12.5px] font-semibold text-slate-800">{bd.accountHolderName || '—'}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-slate-500">Bank</span>
-                  <span className="text-[12.5px] font-semibold text-slate-800">{bd.bankName || '—'}</span>
-                </div>
+                {[
+                  ['Account Holder', bd.accountHolderName || '—'],
+                  ['Bank',           bd.bankName          || '—'],
+                  ['IFSC',           bd.ifscCode          || '—'],
+                ].map(([label, val]) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-[12px] text-slate-500">{label}</span>
+                    <span className="text-[12.5px] font-semibold text-slate-800">{val}</span>
+                  </div>
+                ))}
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] text-slate-500">Account No.</span>
                   <span className="text-[12.5px] font-mono font-bold text-slate-800 tracking-wider">
                     {'*'.repeat(Math.max(0, (bd.accountNumber || '').length - 4))}{(bd.accountNumber || '').slice(-4)}
                   </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-slate-500">IFSC</span>
-                  <span className="text-[12.5px] font-mono font-bold text-slate-800">{bd.ifscCode || '—'}</span>
                 </div>
                 {bd.upiId && (
                   <div className="flex items-center justify-between">
@@ -122,47 +141,58 @@ function PayDoctorModal({
                     <span className="text-[12.5px] font-semibold text-slate-800">{bd.upiId}</span>
                   </div>
                 )}
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-slate-500">Account Type</span>
-                  <span className="text-[12px] font-semibold capitalize text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">{bd.accountType || '—'}</span>
-                </div>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl">
                 <i className="bi bi-exclamation-triangle-fill text-amber-500" />
-                <p className="text-[12px] text-amber-700 font-medium">Doctor has not added bank details yet. Transfer manually after contacting them.</p>
+                <p className="text-[12px] text-amber-700 font-medium">Doctor has not added bank details yet. Payout will still be processed and doctor will be notified.</p>
               </div>
             )}
           </div>
 
-          {/* Form */}
-          <div className="px-6 py-4 space-y-4">
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1.5">
-                Transaction Reference <span className="text-slate-300 font-normal">(UTR / IMPS / UPI Ref)</span>
-              </label>
-              <input value={transactionRef} onChange={e => setTransactionRef(e.target.value)}
-                placeholder="e.g. UTR123456789012"
-                className="w-full px-3.5 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all" />
-            </div>
-            <div>
-              <label className="text-[11px] font-bold uppercase tracking-widest text-slate-400 block mb-1.5">Note <span className="text-slate-300 font-normal">(optional)</span></label>
-              <textarea value={payoutNote} onChange={e => setPayoutNote(e.target.value)}
-                rows={2} placeholder="Any remarks about this payout…"
-                className="w-full px-3.5 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-200 rounded-xl focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 outline-none transition-all resize-none" />
-            </div>
-
-            <div className="flex gap-3 pt-1">
-              <button onClick={onClose} className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
-                Cancel
-              </button>
-              <button onClick={handlePay} disabled={loading}
-                className="flex-1 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white text-sm font-bold shadow-lg shadow-emerald-200 transition-all disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                {loading
-                  ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing…</>
-                  : <><i className="bi bi-send-check-fill" /> Mark as Paid</>}
-              </button>
-            </div>
+          {/* Action body */}
+          <div className="px-6 py-5 space-y-4">
+            {generatedUTR ? (
+              <>
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center space-y-2">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                    <i className="bi bi-check2-circle text-emerald-600 text-xl" />
+                  </div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-600">Payout Processed</p>
+                  <p className="text-[11px] text-emerald-500">UTR Reference Number</p>
+                  <p className="text-[20px] font-mono font-extrabold text-emerald-800 tracking-widest">{generatedUTR}</p>
+                  <p className="text-[10px] text-emerald-400">Doctor has been notified</p>
+                </div>
+                <button onClick={onClose}
+                  className="w-full py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold transition-all">
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-3.5 flex items-start gap-3">
+                  <i className="bi bi-lightning-charge-fill text-blue-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[12px] font-semibold text-blue-800">Razorpay Payment</p>
+                    <p className="text-[11px] text-blue-500 mt-0.5 leading-relaxed">
+                      {fmtMoney(payoutAmt)} will be processed via Razorpay test mode. A unique UTR will be auto-generated and saved.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={onClose}
+                    className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={handlePayout} disabled={loading}
+                    className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
+                    {loading
+                      ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing…</>
+                      : <><i className="bi bi-lightning-charge-fill" />Process Payout</>}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
@@ -445,6 +475,16 @@ export default function PaymentsPage() {
                         <Badge {...(PAYOUT_BADGE[a.payoutStatus] || { variant: 'gray' })}>{a.payoutStatus}</Badge>
                         {a.payoutStatus === 'Paid' && a.payoutDate && (
                           <p className="text-[10.5px] text-slate-400 mt-0.5">{fmtDate(a.payoutDate)}</p>
+                        )}
+                        {a.payoutStatus === 'Paid' && (a as any).payoutTransactionRef && (
+                          <p className="text-[10px] font-mono text-emerald-600 mt-0.5 tracking-wide">
+                            {(a as any).payoutTransactionRef}
+                          </p>
+                        )}
+                        {(a.guestSurcharge || 0) > 0 && (
+                          <span className="inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 bg-amber-50 border border-amber-200 rounded text-[10px] font-semibold text-amber-700">
+                            <i className="bi bi-person-dash" /> +{fmtMoney(a.guestSurcharge)} guest
+                          </span>
                         )}
                       </Td>
 

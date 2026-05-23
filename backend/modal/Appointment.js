@@ -51,8 +51,9 @@ const appointmentSchema = new mongoose.Schema({
 
   // Payment fields
   consultationFees: { type: Number, required: true },
-  platformFees: { type: Number, required: true },
-  totalAmount: { type: Number, required: true },
+  platformFees:     { type: Number, required: true },
+  guestSurcharge:   { type: Number, default: 0 },   // ₹30 extra for guest users — kept by admin
+  totalAmount:      { type: Number, required: true },
   paymentStatus: {
     type: String,
     enum: ['Pending', 'Paid', 'refunded'],
@@ -63,7 +64,8 @@ const appointmentSchema = new mongoose.Schema({
     enum: ['Pending', 'Paid', 'Cancelled'],
     default: 'Pending'
   },
-  payoutDate: { type: Date },
+  payoutDate:           { type: Date },
+  payoutTransactionRef: { type: String, default: '' }, // auto-generated UTR e.g. UCUTR25000001
   paymentMethod: { type: String, default: 'Online' },
 
   // RazorPay fields

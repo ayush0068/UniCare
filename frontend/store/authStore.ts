@@ -4,6 +4,13 @@ import {create} from 'zustand';
 import { persist } from 'zustand/middleware';
 
 
+interface OtpResult {
+  requiresOtp: true;
+  tempToken?: string;
+  email?: string;
+  sentTo: { email: string; phone: string | null };
+}
+
 interface AuthState {
     user : User | null;
     token : string | null;
@@ -16,13 +23,12 @@ interface AuthState {
     clearError : () => void;
     logout : () => void;
 
-
     //Api Actions
-    loginDoctor : (email: string, password: string) => Promise<void>;
-    loginPatient : (email: string, password: string) => Promise<void>;
+    loginDoctor : (email: string, password: string) => Promise<OtpResult | void>;
+    loginPatient : (email: string, password: string) => Promise<OtpResult | void>;
     loginAsGuest : () => Promise<void>;
-    registerDoctor : (data: any) => Promise<void>;
-    registerPatient : (data: any) => Promise<void>;
+    registerDoctor : (data: any) => Promise<OtpResult | void>;
+    registerPatient : (data: any) => Promise<OtpResult | void>;
     fetchProfile : () => Promise<User | null>;
     updateProfile : (data: any) => Promise<void>;
 }
@@ -56,12 +62,17 @@ export const userAuthStore = create<AuthState>()(
             set({ loading: true, error: null });
             try {
                 const response = await postWithoutAuth("/auth/doctor/login", { email, password });
+                if (response.data?.requiresOtp) {
+                    // OTP mode — return pending data
+                    return response.data as OtpResult;
+                }
+                // Password mode — direct JWT, set user immediately
                 get().setUser(response.data.user, response.data.token);
             } catch (error: any) {
-                set({ error: error.message })
+                set({ error: error.message });
                 throw error;
             } finally {
-                set({ loading: false })
+                set({ loading: false });
             }
         },
 
@@ -69,12 +80,17 @@ export const userAuthStore = create<AuthState>()(
             set({ loading: true, error: null });
             try {
                 const response = await postWithoutAuth("/auth/patient/login", { email, password });
+                if (response.data?.requiresOtp) {
+                    // OTP mode — return pending data
+                    return response.data as OtpResult;
+                }
+                // Password mode — direct JWT, set user immediately
                 get().setUser(response.data.user, response.data.token);
             } catch (error: any) {
-                set({ error: error.message })
+                set({ error: error.message });
                 throw error;
             } finally {
-                set({ loading: false })
+                set({ loading: false });
             }
         },
 
@@ -95,6 +111,10 @@ export const userAuthStore = create<AuthState>()(
             set({ loading: true, error: null });
             try {
                 const response = await postWithoutAuth("/auth/doctor/register", data);
+                // OTP required — return pending data, don't set auth yet
+                if (response.data?.requiresOtp) {
+                    return { ...response.data, email: data.email } as OtpResult;
+                }
                 get().setUser(response.data.user, response.data.token);
             } catch (error: any) {
                 set({ error: error.message })
@@ -108,6 +128,10 @@ export const userAuthStore = create<AuthState>()(
             set({ loading: true, error: null });
             try {
                 const response = await postWithoutAuth("/auth/patient/register", data);
+                // OTP required — return pending data, don't set auth yet
+                if (response.data?.requiresOtp) {
+                    return { ...response.data, email: data.email } as OtpResult;
+                }
                 get().setUser(response.data.user, response.data.token);
             } catch (error: any) {
                 set({ error: error.message })

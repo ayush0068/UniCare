@@ -65,6 +65,8 @@ export interface Appointment {
   consultationFees: number;
   platformFees: number;
   totalAmount: number;
+  guestSurcharge: number;           // derived: totalAmount - consultationFees - platformFees (30 for guest, 0 otherwise)
+  payoutTransactionRef?: string;    // auto-generated UTR e.g. UCUTR25000001
   paymentStatus: 'Pending' | 'Paid' | 'refunded';
   payoutStatus: 'Pending' | 'Paid' | 'Cancelled';
   paymentMethod?: string;

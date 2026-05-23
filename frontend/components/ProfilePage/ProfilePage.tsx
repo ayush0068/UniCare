@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Checkbox } from '../ui/checkbox';
 import { postWithAuth, deleteWithAuth, getWithAuth } from '@/service/httpService';
 import BankDetailsPanel from '../doctor/BankDetailsPanel';
+import PhoneVerifyModal from '../auth/PhoneVerifyModal';
 
 interface ProfileProps {
   userType: 'doctor' | 'patient';
@@ -323,6 +324,10 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const [activeSection, setActiveSection] = useState('about');
   const [isEditing, setIsEditing] = useState(false);
   const originalFormDataRef = useRef<any>(null);
+
+  // Phone OTP verification state
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
 
   const [formData, setFormData] = useState<any>({
     name: '', email: '', phone: '', dob: '', gender: '', bloodGroup: '', about: '',
@@ -659,7 +664,18 @@ const ProfilePage = ({ userType }: ProfileProps) => {
   const renderContactSection = () => (
     <div className='space-y-6'>
       <FieldWrapper label='Phone Number'>
-        <UCInput value={formData.phone || ''} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder='+91-94xxxxxx99' isEditing={isEditing} />
+        <div className='flex gap-2 items-start'>
+          <UCInput value={formData.phone || ''} onChange={(e) => handleInputChange('phone', e.target.value)} placeholder='+91-94xxxxxx99' isEditing={isEditing} />
+          {formData.phone && (
+            (user as any)?.phoneVerified || phoneVerified
+              ? <span className='inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-xl whitespace-nowrap'>✓ Verified</span>
+              : <button type='button' onClick={() => setShowPhoneVerify(true)}
+                  className='inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-sky-600 bg-sky-50 border border-sky-200 rounded-xl whitespace-nowrap hover:bg-sky-100 transition-colors'>
+                  Verify
+                </button>
+          )}
+        </div>
+        <p className='text-[11px] text-slate-400'>Add your phone to receive OTPs via SMS.</p>
       </FieldWrapper>
       <FieldWrapper label='Email Address'>
         <UCInput value={formData.email || ''} readOnly placeholder='your@email.com' isEditing={isEditing} />
@@ -726,6 +742,17 @@ const ProfilePage = ({ userType }: ProfileProps) => {
 
   return (
     <>
+      {/* Phone OTP verification modal */}
+      {showPhoneVerify && formData.phone && (
+        <PhoneVerifyModal
+          phone={formData.phone}
+          onSuccess={(verifiedPhone) => {
+            setPhoneVerified(true);
+            setShowPhoneVerify(false);
+          }}
+          onClose={() => setShowPhoneVerify(false)}
+        />
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,700;1,9..144,600&display=swap');
         .uc-font  { font-family: 'DM Sans', system-ui, sans-serif; }

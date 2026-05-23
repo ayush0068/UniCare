@@ -58,4 +58,31 @@ async function generateUniCareId(entity) {
   return `UC${prefix}${yy}${seq}`;                      // "UC-PT-25-00001"
 }
 
-module.exports = { generateUniCareId };
+/**
+ * Generates a sequential UniCare UTR (payout reference).
+ *
+ * FORMAT:  UCUTR-YY-NNNNNN
+ *   UC     UniCare prefix
+ *   UTR    Unified Transfer Reference
+ *   YY     2-digit year
+ *   NNNNNN 6-digit zero-padded sequence (resets each year)
+ *
+ * EXAMPLES:
+ *   UCUTR25000001   First payout of 2025
+ *   UCUTR25000042   42nd payout of 2025
+ */
+async function generateUTR() {
+  const yy         = new Date().getFullYear().toString().slice(-2);
+  const counterKey = `utr_${yy}`;
+
+  const counter = await Counter.findOneAndUpdate(
+    { _id: counterKey },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true }
+  );
+
+  const seq = String(counter.seq).padStart(6, '0');
+  return `UCUTR${yy}${seq}`;
+}
+
+module.exports = { generateUniCareId, generateUTR };

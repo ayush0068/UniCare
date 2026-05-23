@@ -4,9 +4,13 @@ import { userAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react'
 import { Label } from '../ui/label';
-import { Eye, EyeOff, Stethoscope, Heart, ShieldCheck, Star, ArrowRight, User, Lock, Mail, LogIn } from 'lucide-react';
+import { Eye, EyeOff, Stethoscope, Heart, ShieldCheck, Star, ArrowRight, UserIcon, Lock, Mail, LogIn } from 'lucide-react';
 import { Checkbox } from '../ui/checkbox';
 import Link from 'next/link';
+import OTPModal from './OTPModal';
+import SignupOTPModal from './SignupOTPModal';
+import ForgotPasswordModal from './ForgotPasswordModal';
+import type { User } from '@/lib/types';
 
 interface AuthFormProps {
   type: 'login' | 'signup';
@@ -30,12 +34,26 @@ const DOCTOR_HIGHLIGHTS = [
 ];
 
 const AuthForm = ({ type, userRole }: AuthFormProps) => {
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [focused, setFocused] = useState<string | null>(null);
 
-  const { registerDoctor, registerPatient, loginDoctor, loginPatient, loginAsGuest, loading, error } = userAuthStore();
+  // Login mode: 'password' or 'otp'
+  const [loginMode, setLoginMode] = useState<'password' | 'otp'>('password');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+  // OTP step state — login
+  const [otpPending, setOtpPending] = useState(false);
+  const [tempToken, setTempToken] = useState('');
+  const [sentTo, setSentTo] = useState<{ email: string; phone: string | null }>({ email: '', phone: null });
+
+  // OTP step state — signup
+  const [signupOtpPending, setSignupOtpPending] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupSentTo, setSignupSentTo] = useState<{ email: string; phone: string | null }>({ email: '', phone: null });
+
+  const { registerDoctor, registerPatient, loginDoctor, loginPatient, loginAsGuest, loading, error, setUser, fetchProfile } = userAuthStore();
   const router = useRouter();
 
   const isSignUp = type === 'signup';
@@ -46,24 +64,47 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
     if (isSignUp && !agreeTerms) return;
     try {
       if (isSignUp) {
-        if (isDoctor) {
-          await registerDoctor({ name: formData.name, email: formData.email, password: formData.password });
-        } else {
-          await registerPatient({ name: formData.name, email: formData.email, password: formData.password });
+        const result = isDoctor
+          ? await registerDoctor({ name: formData.name, email: formData.email, password: formData.password, ...(formData.phone && { phone: formData.phone }) })
+          : await registerPatient({ name: formData.name, email: formData.email, password: formData.password, ...(formData.phone && { phone: formData.phone }) });
+
+        if (result?.requiresOtp) {
+          setSignupEmail(formData.email);
+          setSignupSentTo(result.sentTo);
+          setSignupOtpPending(true);
         }
-        router.push(`/onboarding/${userRole}`);
+      } else if (loginMode === 'otp') {
+        // Passwordless: send OTP to registered email/phone
+        const result = isDoctor
+          ? await loginDoctor(formData.email, 'OTP_MODE')
+          : await loginPatient(formData.email, 'OTP_MODE');
+
+        if (result?.requiresOtp) {
+          setTempToken(result.tempToken ?? '');
+          setSentTo(result.sentTo);
+          setOtpPending(true);
+        }
       } else {
-        if (isDoctor) {
-          await loginDoctor(formData.email, formData.password);
-          router.push('/doctor/dashboard');
-        } else {
-          await loginPatient(formData.email, formData.password);
-          router.push('/patient/dashboard');
+        // Password login — backend returns JWT directly, no OTP
+        const result = isDoctor
+          ? await loginDoctor(formData.email, formData.password)
+          : await loginPatient(formData.email, formData.password);
+
+        // result is void when password mode succeeded (authStore already set user)
+        if (!result) {
+          await fetchProfile();
+          router.push(isDoctor ? '/doctor/dashboard' : '/patient/dashboard');
         }
       }
     } catch (err) {
-      console.error(`${type} failed:`, err);
+      // error already set in authStore
     }
+  };
+
+  const handleOtpSuccess = async (token: string, user: { id: string; type: string; name: string; email: string }) => {
+    setUser({ id: user.id, type: user.type as 'doctor' | 'patient', name: user.name, email: user.email } as User, token);
+    await fetchProfile(); // hydrate full user (isVerified, ucId, etc.) before redirect
+    router.push(isDoctor ? '/doctor/dashboard' : '/patient/dashboard');
   };
 
   const handleGoogleAuth = () => {
@@ -84,6 +125,33 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
   /* ─────────────────────────── Render ─────────────────────────── */
   return (
     <>
+      {/* Forgot Password modal */}
+      {showForgotPassword && (
+        <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />
+      )}
+
+      {/* Signup OTP verification modal */}
+      {signupOtpPending && (
+        <SignupOTPModal
+          email={signupEmail}
+          sentTo={signupSentTo}
+          onSuccess={(token, user) => {
+            setUser({ id: user.id, type: user.type as 'doctor' | 'patient', name: user.name, email: user.email } as User, token);
+            router.push(`/onboarding/${userRole}`);
+          }}
+          onClose={() => setSignupOtpPending(false)}
+        />
+      )}
+
+      {/* Login OTP verification modal */}
+      {otpPending && (
+        <OTPModal
+          tempToken={tempToken}
+          sentTo={sentTo}
+          onSuccess={handleOtpSuccess}
+          onClose={() => setOtpPending(false)}
+        />
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&display=swap');
         .uc-font  { font-family: 'DM Sans', system-ui, sans-serif; }
@@ -340,13 +408,50 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
               <div className='flex-1 h-px bg-slate-100' />
             </div>
 
+            {/* ── Login Mode Tabs (login only) ── */}
+            {!isSignUp && (
+              <div className='flex bg-slate-100 rounded-2xl p-1 mb-6 gap-1'>
+                <button
+                  type='button'
+                  onClick={() => setLoginMode('password')}
+                  className={`flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-semibold rounded-xl transition-all duration-200 ${
+                    loginMode === 'password'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {/* bi-lock-fill */}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                  </svg>
+                  Password
+                </button>
+                <button
+                  type='button'
+                  onClick={() => setLoginMode('otp')}
+                  className={`flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-semibold rounded-xl transition-all duration-200 ${
+                    loginMode === 'otp'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {/* bi-shield-check */}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M5.338 1.59a61 61 0 0 0-2.837.856.48.48 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.7 10.7 0 0 0 2.287 2.233c.346.244.652.42.893.533q.18.085.293.118a1 1 0 0 0 .101.025 1 1 0 0 0 .1-.025q.114-.034.294-.118c.24-.113.547-.29.893-.533a10.7 10.7 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.8 11.8 0 0 1-2.517 2.453 7 7 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7 7 0 0 1-1.048-.625 11.8 11.8 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 63 63 0 0 1 5.072.56z"/>
+                    <path d="M10.854 5.146a.5.5 0 0 1 0 .708l-3 3a.5.5 0 0 1-.708 0l-1.5-1.5a.5.5 0 1 1 .708-.708L7.5 7.793l2.646-2.647a.5.5 0 0 1 .708 0z"/>
+                  </svg>
+                  Login with OTP
+                </button>
+              </div>
+            )}
+
             {/* Form */}
             <form onSubmit={handleSubmit} className='space-y-5'>
               {isSignUp && (
                 <div className='space-y-1.5'>
                   <Label className='text-xs font-semibold text-slate-500 uppercase tracking-wider'>Full Name</Label>
                   <div className='relative'>
-                    <User className={`absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${focused === 'name' ? 'text-sky-500' : 'text-slate-300'}`} />
+                    <UserIcon className={`absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${focused === 'name' ? 'text-sky-500' : 'text-slate-300'}`} />
                     <input
                       id='name'
                       type='text'
@@ -380,31 +485,83 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                 </div>
               </div>
 
-              <div className='space-y-1.5'>
-                <Label className='text-xs font-semibold text-slate-500 uppercase tracking-wider'>Password</Label>
-                <div className='relative'>
-                  <Lock className={`absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${focused === 'password' ? 'text-sky-500' : 'text-slate-300'}`} />
-                  <input
-                    id='password'
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    onFocus={() => setFocused('password')}
-                    onBlur={() => setFocused(null)}
-                    className={`uc-input w-full py-2.5 text-sm text-slate-900 placeholder:text-slate-300 border-b-2 pr-8 ${focused === 'password' ? 'border-sky-500' : 'border-slate-200'}`}
-                    placeholder='Min. 8 characters'
-                    required
-                  />
-                  <button
-                    type='button'
-                    onClick={() => setShowPassword(!showPassword)}
-                    className='absolute right-0 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors'
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
-                  </button>
+              {/* Password field — hidden in OTP login mode */}
+              {(isSignUp || loginMode === 'password') && (
+                <div className='space-y-1.5'>
+                  <div className='flex items-center justify-between'>
+                    <Label className='text-xs font-semibold text-slate-500 uppercase tracking-wider'>Password</Label>
+                    {/* Forgot password — login + password mode only */}
+                    {!isSignUp && loginMode === 'password' && (
+                      <button
+                        type='button'
+                        onClick={() => setShowForgotPassword(true)}
+                        className='text-xs text-sky-500 hover:text-sky-600 font-medium transition-colors'
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div className='relative'>
+                    <Lock className={`absolute left-0 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${focused === 'password' ? 'text-sky-500' : 'text-slate-300'}`} />
+                    <input
+                      id='password'
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      onFocus={() => setFocused('password')}
+                      onBlur={() => setFocused(null)}
+                      className={`uc-input w-full py-2.5 text-sm text-slate-900 placeholder:text-slate-300 border-b-2 pr-8 ${focused === 'password' ? 'border-sky-500' : 'border-slate-200'}`}
+                      placeholder='Min. 8 characters'
+                      required={isSignUp || loginMode === 'password'}
+                    />
+                    <button
+                      type='button'
+                      onClick={() => setShowPassword(!showPassword)}
+                      className='absolute right-0 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors'
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* OTP login mode hint */}
+              {!isSignUp && loginMode === 'otp' && (
+                <div className='flex items-start gap-3 px-4 py-3.5 bg-sky-50 border border-sky-100 rounded-2xl'>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="currentColor" className="text-sky-500 mt-0.5 flex-shrink-0" viewBox="0 0 16 16">
+                    <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2zm3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/>
+                  </svg>
+                  <p className='text-xs text-sky-700 leading-relaxed'>
+                    We'll send a 6-digit OTP to your registered email
+                    {' '}(and phone if added). No password needed.
+                  </p>
+                </div>
+              )}
+
+              {/* Phone number — optional, signup only */}
+              {isSignUp && (
+                <div className='space-y-1.5'>
+                  <Label htmlFor='phone' className='text-[10px] font-semibold tracking-widest text-slate-400 uppercase'>
+                    Phone Number <span className='normal-case tracking-normal font-normal text-slate-300'>(optional)</span>
+                  </Label>
+                  <div className={`relative flex items-center border-b-2 transition-colors duration-200 ${focused === 'phone' ? 'border-sky-500' : 'border-slate-200'}`}>
+                    <span className={`absolute left-0 top-1/2 -translate-y-1/2 text-sm transition-colors duration-200 ${focused === 'phone' ? 'text-sky-500' : 'text-slate-300'}`}>📱</span>
+                    <input
+                      id='phone'
+                      type='tel'
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                      onFocus={() => setFocused('phone')}
+                      onBlur={() => setFocused(null)}
+                      placeholder='10-digit mobile number'
+                      maxLength={10}
+                      className={`uc-input w-full py-2.5 text-sm text-slate-900 placeholder:text-slate-300 border-b-0 pl-6 bg-transparent outline-none`}
+                    />
+                  </div>
+                  <p className='text-[10px] text-slate-300'>Add to receive OTPs via SMS during login</p>
+                </div>
+              )}
 
               {isSignUp && (
                 <div className='flex items-start gap-3 pt-1'>
@@ -439,11 +596,11 @@ const AuthForm = ({ type, userRole }: AuthFormProps) => {
                         <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4' />
                         <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z' />
                       </svg>
-                      {isSignUp ? 'Creating account...' : 'Signing in...'}
+                      {isSignUp ? 'Creating account...' : 'Sending OTP...'}
                     </>
                   ) : (
                     <>
-                      {isSignUp ? 'Create Account' : 'Sign In'}
+                      {isSignUp ? 'Create Account' : loginMode === 'otp' ? 'Send OTP' : 'Sign In'}
                       <ArrowRight className='w-4 h-4' />
                     </>
                   )}

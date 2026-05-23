@@ -48,8 +48,9 @@ const patientSchema = new mongoose.Schema({
   emergencyContact: emergencyContactSchema,
   medicalHistory:   medicalHistorySchema,
 
-  isVerified: { type: Boolean, default: false },
-  isActive:   { type: Boolean, default: true },
+  isVerified:    { type: Boolean, default: false },
+  isActive:      { type: Boolean, default: true },
+  phoneVerified: { type: Boolean, default: false },  // true after OTP verification
 
   // ── Account origin (used for conditional dashboard UI) ──────────────────
   // All existing accounts default to 'self' — no migration needed.

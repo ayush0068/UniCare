@@ -58,8 +58,9 @@ const doctorSchema = new mongoose.Schema({
   // ── Bank / payout details (filled by doctor, used by admin to pay) ──
   bankDetails: { type: bankDetailsSchema, default: () => ({}) },
 
-  isVerified: { type: Boolean, default: false },
-  isActive:   { type: Boolean, default: true },
+  isVerified:    { type: Boolean, default: false },
+  isActive:      { type: Boolean, default: true },
+  phoneVerified: { type: Boolean, default: false },  // true after OTP verification
 }, { timestamps: true });
 
 doctorSchema.pre('save', async function () {

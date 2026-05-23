@@ -8,21 +8,17 @@ const layout = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (!user.isVerified) {
-        redirect(`/onboarding/${user.type}`)
+      if (user.type === 'doctor') {
+        // Doctors go to dashboard regardless — dashboard shows pending-verification
+        // banner if not yet verified. Don't redirect to onboarding here because
+        // isVerified is undefined in the slim post-OTP user object.
+        redirect('/doctor/dashboard');
       } else {
-        if (user.type === 'doctor') {
-          redirect('/doctor/dashboard')
-        } else {
-          redirect('/patient/dashboard')
-        }
+        redirect('/patient/dashboard');
       }
     }
   }, [isAuthenticated, user])
 
-  // ─── Pure passthrough — AuthForm manages its own full-page layout ───
-  // Do NOT add any wrapper div or right panel here.
-  // AuthForm already renders a complete min-h-screen split layout internally.
   return <>{children}</>
 }
 

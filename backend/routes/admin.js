@@ -887,11 +887,18 @@ router.get(
         Appointment.countDocuments(filter),
       ]);
  
-      // Attach payoutAmount = consultationFees (platform fees excluded)
-      const enriched = items.map(a => ({
-        ...a.toObject(),
-        payoutAmount: a.consultationFees, // doctor gets consultation fee only
-      }));
+      // Attach payoutAmount + guestSurcharge derived from stored amounts
+      // guestSurcharge = totalAmount - consultationFees - platformFees
+      // (= 30 for guest users, 0 for normal users — works for both old and new appointments)
+      const enriched = items.map(a => {
+        const obj           = a.toObject();
+        const guestSurcharge = Math.max(0, a.totalAmount - a.consultationFees - a.platformFees);
+        return {
+          ...obj,
+          payoutAmount:    a.consultationFees,
+          guestSurcharge,
+        };
+      });
  
       // Summary stats
       const [pendingStats, paidStats] = await Promise.all([

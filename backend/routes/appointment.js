@@ -275,8 +275,16 @@ router.post("/book", authenticate, requireRole("patient"), [
         doctorId,
         patientId,
         date: new Date(date),
-        slotStartIso: new Date(slotStartIso),
-        slotEndIso: new Date(slotEndIso),
+        // Explicitly re-serialize to a standard ISO 8601 string here.
+        // slotStartIso/slotEndIso are String fields — without this,
+        // Mongoose casts the Date object via its default String cast
+        // (Date.prototype.toString()), which renders using whatever
+        // timezone the Node process happens to be running in (can
+        // differ between local dev and production). .toISOString()
+        // is always UTC and unambiguous, so every client (app,
+        // website, admin panel) parses it identically everywhere.
+        slotStartIso: new Date(slotStartIso).toISOString(),
+        slotEndIso: new Date(slotEndIso).toISOString(),
         consultationType,
         symptoms,
         zegoRoomId,

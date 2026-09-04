@@ -1,6 +1,7 @@
 require('dotenv').config();
 require('./modal/Parchi');
 
+const http       = require('http');
 const express    = require('express');
 const mongoose   = require('mongoose');
 const helmet     = require('helmet');
@@ -14,6 +15,11 @@ const passportLib = require('passport');
 
 const { startReminderScheduler } = require('./utils/reminderScheduler');
 const aiAssistantRoutes          = require('./routes/aiAssistant');
+
+// ── Call signaling — Flutter app's in-built WebRTC calling (new) ────────────
+// The website is unaffected: it keeps using ZegoCloud exactly as before.
+// This only powers the mobile app's doctor/patient calling.
+const { initCallSignaling } = require('./sockets/callSignaling');
 
 // ── Aftercare Bridge — HelpLink → UniCare (existing) ─────────────────────────
 const aftercareRoutes = require('./routes/aftercare');
@@ -93,7 +99,16 @@ const startServer = async () => {
     });
     console.log('MongoDB connected');
     startReminderScheduler();
-    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+    // Wrap Express in a plain http.Server so Socket.IO (used only by the
+    // Flutter app for call signaling) can share the same port. This has
+    // no effect on any existing route, the website, or ZegoCloud — it's
+    // required purely so both HTTP and WebSocket traffic can be served
+    // from the same listener.
+    const server = http.createServer(app);
+    initCallSignaling(server);
+
+    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   } catch (err) {
     console.error('MongoDB connection error:', err);
     process.exit(1);

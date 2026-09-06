@@ -15,6 +15,7 @@ const passportLib = require('passport');
 
 const { startReminderScheduler } = require('./utils/reminderScheduler');
 const aiAssistantRoutes          = require('./routes/aiAssistant');
+const mobileAiAssistantRoutes    = require('./routes/mobileAiAssistant'); // NEW — Flutter app only, additive
 
 // ── Call signaling — Flutter app's in-built WebRTC calling (new) ────────────
 // The website is unaffected: it keeps using ZegoCloud exactly as before.
@@ -72,6 +73,7 @@ app.use('/api/patient',      require('./routes/patient'));
 app.use('/api/appointment',  require('./routes/appointment'));
 app.use('/api/payment',      require('./routes/payment'));
 app.use('/api/ai',           aiAssistantRoutes);
+app.use('/api/mobile-ai',    mobileAiAssistantRoutes); // NEW — Flutter app's AI Assistant (OpenRouter-backed)
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/notification', require('./routes/notification'));
 

@@ -11,6 +11,7 @@ export interface AdminUser {
     doctorManagement: boolean;
     paymentManagement: boolean;
     analytics: boolean;
+    feedbackManagement: boolean;
   };
 }
 
@@ -107,6 +108,27 @@ export interface PaymentStats {
   refundedAmount: number;
   refundedCount: number;
   methodBreakdown: { _id: string; count: number; total: number }[];
+}
+
+export interface Feedback {
+  _id: string;
+  patientId: string;
+  patientName: string;
+  rating: number; // 1-5
+  categories: ('UI' | 'Design' | 'Idea' | 'Performance' | 'Other')[];
+  message?: string;
+  appVersion?: string;
+  platform?: string;
+  isFeatured: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface FeedbackStats {
+  totalFeedback: number;
+  averageRating: number;
+  distribution: { _id: number; count: number }[]; // by star rating, 5→1
+  categoryBreakdown: { _id: string; count: number }[];
 }
 
 export interface PaginationMeta {

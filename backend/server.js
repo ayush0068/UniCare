@@ -76,6 +76,7 @@ app.use('/api/ai',           aiAssistantRoutes);
 app.use('/api/mobile-ai',    mobileAiAssistantRoutes); // NEW — Flutter app's AI Assistant (OpenRouter-backed)
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/notification', require('./routes/notification'));
+app.use('/api/feedback',     require('./routes/feedback')); // NEW — in-app patient ratings/reviews (Flutter app)
 
 // ── Aftercare Bridge (existing — HelpLink → UniCare case storage) ─────────────
 app.use('/api', aftercareRoutes);

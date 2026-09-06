@@ -47,6 +47,7 @@ const Doctor = require('../modal/Doctor');
 const Patient = require('../modal/Patient');
 const Appointment = require('../modal/Appointment');
 const Notification = require('../modal/Notification');
+const Feedback = require('../modal/Feedback');
 
 const { authenticateAdmin, requireSuperAdmin, requirePermission } = require('../middleware/adminAuth');
 
@@ -330,6 +331,7 @@ router.post(
                 doctorManagement: false,
                 paymentManagement: false,
                 analytics: false,
+                feedbackManagement: false,
             };
 
             const admin = await Admin.create({
@@ -1059,6 +1061,134 @@ router.put(
       });
     } catch (err) {
       res.serverError('Failed to bulk mark payouts', [err.message]);
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEEDBACK & REVIEWS  (from the Flutter app's Home banner + Help Center)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/admin/feedback
+ * Query: page, limit, rating (1-5), category (UI|Design|Idea|Performance|Other), search
+ */
+router.get(
+  '/feedback',
+  authenticateAdmin,
+  requirePermission('feedbackManagement'),
+  [
+    query('page').optional().isInt({ min: 1 }),
+    query('limit').optional().isInt({ min: 1, max: 100 }),
+    query('rating').optional().isInt({ min: 1, max: 5 }),
+    query('category').optional().isIn(['UI', 'Design', 'Idea', 'Performance', 'Other']),
+    query('search').optional().isString(),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { page = 1, limit = 20, rating, category, search } = req.query;
+      const filter = {};
+
+      if (rating) filter.rating = Number(rating);
+      if (category) filter.categories = category;
+      if (search) {
+        filter.$or = [
+          { patientName: { $regex: search, $options: 'i' } },
+          { message: { $regex: search, $options: 'i' } },
+        ];
+      }
+
+      const skip = (Number(page) - 1) * Number(limit);
+      const [items, total] = await Promise.all([
+        Feedback.find(filter)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(Number(limit)),
+        Feedback.countDocuments(filter),
+      ]);
+
+      res.ok(items, 'Feedback fetched', { page: Number(page), limit: Number(limit), total });
+    } catch (err) {
+      res.serverError('Failed to fetch feedback', [err.message]);
+    }
+  }
+);
+
+/**
+ * GET /api/admin/feedback/stats
+ * Average rating + star-rating distribution + category breakdown.
+ */
+router.get(
+  '/feedback/stats',
+  authenticateAdmin,
+  requirePermission('feedbackManagement'),
+  async (req, res) => {
+    try {
+      const [overall, distribution, categoryBreakdown, total] = await Promise.all([
+        Feedback.aggregate([
+          { $group: { _id: null, avgRating: { $avg: '$rating' } } },
+        ]),
+        Feedback.aggregate([
+          { $group: { _id: '$rating', count: { $sum: 1 } } },
+          { $sort: { _id: -1 } },
+        ]),
+        Feedback.aggregate([
+          { $unwind: { path: '$categories', preserveNullAndEmptyArrays: false } },
+          { $group: { _id: '$categories', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+        ]),
+        Feedback.countDocuments(),
+      ]);
+
+      res.ok({
+        totalFeedback: total,
+        averageRating: overall[0]?.avgRating ? Number(overall[0].avgRating.toFixed(2)) : 0,
+        distribution, // [{ _id: 5, count: 12 }, { _id: 4, count: 4 }, ...]
+        categoryBreakdown, // [{ _id: 'UI', count: 8 }, ...]
+      }, 'Feedback stats fetched');
+    } catch (err) {
+      res.serverError('Failed to fetch feedback stats', [err.message]);
+    }
+  }
+);
+
+/**
+ * PUT /api/admin/feedback/:id/toggle-featured
+ * Flags a great review — e.g. for later use as a testimonial.
+ */
+router.put(
+  '/feedback/:id/toggle-featured',
+  authenticateAdmin,
+  requirePermission('feedbackManagement'),
+  async (req, res) => {
+    try {
+      const item = await Feedback.findById(req.params.id);
+      if (!item) return res.notFound('Feedback not found');
+      item.isFeatured = !item.isFeatured;
+      await item.save();
+      res.ok(item, `Feedback ${item.isFeatured ? 'featured' : 'unfeatured'}`);
+    } catch (err) {
+      res.serverError('Failed to update feedback', [err.message]);
+    }
+  }
+);
+
+/**
+ * DELETE /api/admin/feedback/:id
+ * Removes spam/inappropriate submissions.
+ */
+router.delete(
+  '/feedback/:id',
+  authenticateAdmin,
+  requirePermission('feedbackManagement'),
+  async (req, res) => {
+    try {
+      const item = await Feedback.findByIdAndDelete(req.params.id);
+      if (!item) return res.notFound('Feedback not found');
+      res.ok({}, 'Feedback deleted');
+    } catch (err) {
+      res.serverError('Failed to delete feedback', [err.message]);
     }
   }
 );

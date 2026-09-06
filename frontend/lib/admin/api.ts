@@ -6,6 +6,8 @@ type Appointment = any;
 type PaymentStats = any;
 type DashboardStats = any;
 
+import type { Feedback, FeedbackStats } from './types';
+
 const API_BASE =
   process.env.NEXT_PUBLIC_ADMIN_API_URL ||
   'http://localhost:8000/api/admin';
@@ -116,3 +118,12 @@ export const bulkMarkPayoutsPaid = (
 ) => put<{ updated: number; totalPayout: number }>(
   '/payouts/bulk-mark-paid', { appointmentIds, ...body }
 );
+
+// ── Feedback & Reviews ──────────────────────────────────────────
+export const getFeedback = (params: Record<string, string>) => {
+  const qs = new URLSearchParams(Object.fromEntries(Object.entries(params).filter(([, v]) => v !== ''))).toString();
+  return get<Feedback[]>('/feedback' + (qs ? '?' + qs : ''));
+};
+export const getFeedbackStats = () => get<FeedbackStats>('/feedback/stats');
+export const toggleFeedbackFeatured = (id: string) => put<Feedback>(`/feedback/${id}/toggle-featured`);
+export const deleteFeedback = (id: string) => del<Record<string, never>>(`/feedback/${id}`);

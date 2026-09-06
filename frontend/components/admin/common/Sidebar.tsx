@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { label: 'Doctors',        href: '/admin/doctors',      icon: 'bi-hospital-fill',             perm: 'doctorManagement' },
   { label: 'Appointments',   href: '/admin/appointments', icon: 'bi-calendar2-week-fill',       perm: 'analytics' },
   { label: 'Payments',       href: '/admin/payments',     icon: 'bi-credit-card-2-front-fill',  perm: 'paymentManagement' },
+  { label: 'Feedback & Reviews', href: '/admin/feedback', icon: 'bi-chat-heart-fill',           perm: 'feedbackManagement' },
   { label: 'Admin Accounts', href: '/admin/accounts',     icon: 'bi-shield-lock-fill',          superOnly: true },
 ];
 
